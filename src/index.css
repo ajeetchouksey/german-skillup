@@ -1,0 +1,334 @@
+@import "tailwindcss";
+
+/* ─── Design tokens: AaryaAI brand base (violet/blue), shared with ajch_platform ─ */
+@theme {
+  --color-bg:          #0e1a2d;
+  --color-bg-alt:      #0d1829;
+  --color-card:        #111c2e;
+  --color-border:      #1e2d42;
+  --color-accent:      #7c3aed;
+  --color-accent-blue: #2f6fed;
+  --color-error:       #dc2626;
+  --color-success:     #2fbf71;
+  --color-muted:       #9aa3b2;
+  --radius-card:       14px;
+  --shadow-card:       0 8px 24px rgba(0,0,0,0.35);
+}
+
+@layer base {
+  html { scroll-behavior: smooth; }
+  body {
+    color: #f1f5f9; /* slate-100 */
+    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    /* 5-layer nebula — violet/blue Aarya brand base */
+    background:
+      radial-gradient(ellipse 100% 60% at 50% -5%,  rgba(139,92,246,0.14) 0%, transparent 65%),
+      radial-gradient(ellipse 70%  50% at 85% 85%,  rgba(59,130,246,0.10) 0%, transparent 55%),
+      radial-gradient(ellipse 50%  40% at 10% 60%,  rgba(99,102,241,0.06) 0%, transparent 50%),
+      radial-gradient(ellipse 55%  45% at 100% 45%, rgba(124,58,237,0.07) 0%, transparent 60%),
+      radial-gradient(ellipse 45%  35% at 0%   95%, rgba(109,40,217,0.05) 0%, transparent 55%),
+      #0e1a2d;
+    background-attachment: fixed;
+  }
+}
+
+/* ─── Keyframes ─── */
+@keyframes sheen {
+  0%   { transform: translateX(-100%) skewX(-15deg); }
+  100% { transform: translateX(200%)  skewX(-15deg); }
+}
+@keyframes gradientShimmer {
+  0%, 100% { background-position: 0%   50%; }
+  50%       { background-position: 100% 50%; }
+}
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.4; }
+  50%       { opacity: 0.8; }
+}
+
+/* ─── Glass card — real glassmorphism matching ajch_platform ─── */
+.glass-card {
+  background: linear-gradient(135deg, rgba(17,28,46,0.80), rgba(13,24,41,0.90));
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(148,163,184,0.12);
+  border-radius: 14px;
+  box-shadow:
+    0 0 0 1px rgba(148,163,184,0.05),
+    inset 0 1px 0 0 rgba(255,255,255,0.05),
+    0 4px 24px -4px rgba(0,0,0,0.30);
+}
+.glass-card:hover {
+  border-color: rgba(148,163,184,0.20);
+  box-shadow:
+    0 0 0 1px rgba(148,163,184,0.08),
+    inset 0 1px 0 0 rgba(255,255,255,0.07),
+    0 8px 40px -8px rgba(0,0,0,0.40),
+    0 0 40px -8px rgba(212,160,23,0.14);
+}
+
+/* Stats inner glow */
+.glass-stats {
+  background: linear-gradient(135deg, rgba(17,28,46,0.55), rgba(13,24,41,0.72));
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(148,163,184,0.10);
+  border-radius: 14px;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255,255,255,0.06),
+    0 2px 16px -4px rgba(0,0,0,0.22);
+}
+
+/* Sheen sweep on hover */
+.glass-sheen { position: relative; overflow: hidden; }
+.glass-sheen::after {
+  content: '';
+  position: absolute; top: 0; left: 0;
+  width: 40%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.03), transparent);
+  transform: translateX(-100%) skewX(-15deg);
+  pointer-events: none;
+}
+.glass-sheen:hover::after { animation: sheen 0.8s ease-out; }
+
+/* Colored 2px top-border strip — caller sets --accent-color CSS var */
+.card-accent-top { position: relative; }
+.card-accent-top::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--accent-color, linear-gradient(90deg, #7c3aed, #a78bfa));
+  border-radius: 14px 14px 0 0;
+  opacity: 0.75;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Animated heading gradient — Aarya violet/purple palette */
+.heading-gradient {
+  background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 40%, #c4b5fd 70%, #7c3aed 100%);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradientShimmer 5s ease infinite;
+}
+
+/* Eyebrow label above page h1 */
+.page-eyebrow {
+  display: inline-flex; align-items: center; gap: 0.375rem;
+  font-size: 0.6875rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.12em;
+  color: #a78bfa; margin-bottom: 0.35rem;
+}
+.page-eyebrow::before {
+  content: ''; width: 5px; height: 5px;
+  border-radius: 50%; background: #7c3aed; flex-shrink: 0;
+}
+
+/* Section h2 with violet left-accent */
+.section-heading {
+  font-size: 0.9375rem; font-weight: 600; color: white;
+  border-left: 2px solid #7c3aed; padding-left: 0.75rem;
+  letter-spacing: -0.01em;
+}
+
+/* Scrollbar hide */
+.hide-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+
+/* ─── Legacy component classes (kept for component compatibility) ─── */
+.pill {
+  display: inline-flex; align-items: center; gap: 0.375rem;
+  border-radius: 9999px; border: 1px solid var(--color-border);
+  background-color: var(--color-card);
+  padding: 0.375rem 0.75rem; font-size: 0.75rem;
+}
+.btn {
+  border-radius: 0.5rem; border: 1px solid var(--color-border);
+  background-color: var(--color-card);
+  padding: 0.5rem 1rem; font-size: 0.875rem; font-weight: 600;
+  transition: border-color 0.15s;
+  cursor: pointer;
+}
+.btn:hover { border-color: var(--color-accent-blue); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-primary {
+  border: none; color: #fff;
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+}
+.badge-level {
+  display: inline-flex; align-items: center; gap: 0.375rem;
+  border-radius: 9999px; border: 1px solid var(--color-border);
+  background-color: var(--color-card);
+  padding: 0.375rem 0.75rem; font-size: 0.75rem;
+  color: var(--color-accent); font-weight: 600; letter-spacing: 0.05em;
+}
+.section-label {
+  font-size: 0.7rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--color-accent); margin-top: 1.5rem; margin-bottom: 0.5rem;
+  display: block;
+}
+.rounded-card { border-radius: 14px; }
+
+/* ─── Flashcard flip ───────────────────────────────────────────────────────── */
+.flip-card { perspective: 1000px; }
+.flip-card-inner {
+  position: relative;
+  transition: transform 0.45s cubic-bezier(0.4,0,0.2,1);
+  transform-style: preserve-3d;
+}
+.flip-card-inner.flipped { transform: rotateY(180deg); }
+.flip-card-front,
+.flip-card-back {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.flip-card-back { transform: rotateY(180deg); }
+
+/* ── NavSidebar responsive: fixed overlay on mobile, sticky on desktop ─── */
+.nav-sidebar {
+  position: fixed;
+  top: 56px;
+  left: 0;
+  z-index: 10;
+  transform: translateX(-100%);
+  transition: transform 200ms ease-in-out;
+  height: calc(100vh - 56px);
+  width: 240px;
+  flex-shrink: 0;
+}
+.nav-sidebar[data-open="true"] { transform: translateX(0); }
+@media (min-width: 1024px) {
+  .nav-sidebar {
+    position: sticky;
+    top: 56px;
+    transform: none !important;
+    z-index: auto;
+  }
+}
+
+/* ── Handwriting / notebook note style ────────────────────────────────────── */
+
+.note-paper {
+  font-family: 'Kalam', cursive;
+  font-size: 16px;
+  line-height: 32px;
+  color: #1c1a2e;
+  background-color: #fffef5;
+  /* ruled lines aligned to line-height, margin line at 36px */
+  background-image:
+    linear-gradient(to right, transparent 36px, #f5a3a3 36px, #f5a3a3 37px, transparent 37px),
+    repeating-linear-gradient(
+      to bottom,
+      transparent,
+      transparent 31px,
+      rgba(160, 160, 220, 0.35) 31px,
+      rgba(160, 160, 220, 0.35) 32px
+    );
+  border-radius: 4px;
+  padding: 12px 16px 12px 48px;
+  box-shadow: 2px 3px 12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(200, 185, 130, 0.4);
+  position: relative;
+}
+
+/* Label tab pinned to top of the note card */
+.note-paper-label {
+  font-family: 'Kalam', cursive;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+/* Yellow sticky-note variant */
+.note-paper-yellow {
+  background-color: #fffde7;
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      transparent,
+      transparent 31px,
+      rgba(180, 160, 100, 0.3) 31px,
+      rgba(180, 160, 100, 0.3) 32px
+    );
+  box-shadow: 3px 4px 14px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(220, 200, 100, 0.5);
+}
+
+/* Tape strip across top */
+.note-tape::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 48px;
+  height: 18px;
+  background: rgba(200, 230, 255, 0.6);
+  border-radius: 2px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+
+/* Compact notepad — less vertical padding, tighter rules */
+.note-compact {
+  padding: 8px 14px 8px 44px;
+  font-size: 15px;
+  line-height: 30px;
+  background-image:
+    linear-gradient(to right, transparent 32px, #f5a3a3 32px, #f5a3a3 33px, transparent 33px),
+    repeating-linear-gradient(
+      to bottom,
+      transparent,
+      transparent 29px,
+      rgba(160, 160, 220, 0.3) 29px,
+      rgba(160, 160, 220, 0.3) 30px
+    );
+}
+
+/* Sticky note — no margin line, more vibrant yellow */
+.note-sticky {
+  font-family: 'Kalam', cursive;
+  font-size: 15px;
+  line-height: 28px;
+  color: #2a2010;
+  background-color: #fff9c4;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent 27px,
+    rgba(180, 160, 60, 0.25) 27px,
+    rgba(180, 160, 60, 0.25) 28px
+  );
+  border-radius: 2px 2px 6px 6px;
+  padding: 32px 16px 12px 16px;
+  box-shadow: 3px 4px 14px rgba(0,0,0,0.22), 0 0 0 1px rgba(220,200,60,0.4);
+  position: relative;
+}
+
+/* Sticky note top fold */
+.note-sticky::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 24px;
+  background: rgba(255, 230, 0, 0.45);
+  border-bottom: 1px solid rgba(180,160,60,0.3);
+  border-radius: 2px 2px 0 0;
+}
+
+/* Green notepad — for objectives */
+.note-green {
+  background-color: #f0fdf4;
+  background-image:
+    linear-gradient(to right, transparent 36px, #86efac 36px, #86efac 37px, transparent 37px),
+    repeating-linear-gradient(
+      to bottom,
+      transparent,
+      transparent 31px,
+      rgba(134, 239, 172, 0.35) 31px,
+      rgba(134, 239, 172, 0.35) 32px
+    );
+  color: #14301e;
+  box-shadow: 2px 3px 12px rgba(0,0,0,0.2), 0 0 0 1px rgba(134,239,172,0.3);
+}
