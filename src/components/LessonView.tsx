@@ -19,6 +19,8 @@ import { VocabTypeQuiz } from "./VocabTypeQuiz";
 import { WritingPad } from "./WritingPad";
 import { SpeakButton } from "./SpeakButton";
 import { PronounceChecker } from "./PronounceChecker";
+import { GrammarTable } from "./GrammarTable";
+import { GrammarDiagram } from "./GrammarDiagram";
 
 interface Props {
   data: LevelContent;
@@ -106,6 +108,20 @@ export function LessonView({ data, mod, lesson, progress, onComplete, onQuizComp
         {mod.icon} {lesson.title}
       </h2>
 
+      {lesson.illustration && (
+        <figure className="mt-4">
+          <img
+            src={lesson.illustration.src}
+            alt={lesson.illustration.alt}
+            className="w-full rounded-lg border border-border object-cover"
+            style={{ maxHeight: 280 }}
+          />
+          {lesson.illustration.credit && (
+            <figcaption className="mt-1 text-[10px] text-slate-600">{lesson.illustration.credit}</figcaption>
+          )}
+        </figure>
+      )}
+
       <ModulePractice moduleId={mod.id} />
 
       {/* Learning objectives */}
@@ -129,6 +145,16 @@ export function LessonView({ data, mod, lesson, progress, onComplete, onQuizComp
           ))}
         </ul>
       </div>
+      {lesson.grammarTable && (
+        <div className="mt-3">
+          <GrammarTable data={lesson.grammarTable} />
+        </div>
+      )}
+      {lesson.grammarDiagram && (
+        <div className="mt-3">
+          <GrammarDiagram data={lesson.grammarDiagram} />
+        </div>
+      )}
 
       {/* Vocabulary */}
       <SectionLabel icon={Zap} label="Core vocabulary" />
