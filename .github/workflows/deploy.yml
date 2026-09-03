@@ -1,8 +1,13 @@
 name: Deploy to GitHub Pages
+# Manual rollback path only — no longer auto-deploys. deploy-cloudflare-pages.yml
+# is the production deployment target (hallo.aaryaai.dev — DNS points there).
+# GitHub Pages was the original host but the project moved to Cloudflare Pages
+# for consistency with ajch_platform's own hosting (and to share the same
+# Cloudflare account/zone the auth Worker already lives in). This workflow is
+# kept working (public/CNAME still present) in case a rollback is ever needed —
+# trigger it from the Actions tab (workflow_dispatch) or `gh workflow run`.
 
 on:
-  push:
-    branches: ["main"]
   workflow_dispatch:
 
 permissions:

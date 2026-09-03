@@ -3,8 +3,9 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
-// Served on the custom domain hallo.aaryaai.dev (see public/CNAME), so base
-// is "/" rather than a GitHub Pages project-site subpath.
+// Served on the custom domain hallo.aaryaai.dev (Cloudflare Pages, project
+// ajch-hallo), so base is "/" rather than a subpath. public/CNAME is kept
+// only for the GitHub Pages rollback path (.github/workflows/deploy.yml).
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   base: "/",

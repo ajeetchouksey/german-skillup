@@ -2,8 +2,8 @@
 
 A free German learning app, no account required to start — same platform
 philosophy and UI language as [ajch_platform](https://github.com/ajeetchouksey/ajch_platform)
-/ AaryaAI SkillUp: React + TypeScript + Vite, dark glass-card UI, GitHub Pages
-hosting, versioned releases with a changelog. Optional Google sign-in (a
+/ AaryaAI SkillUp: React + TypeScript + Vite, dark glass-card UI, Cloudflare
+Pages hosting, versioned releases with a changelog. Optional Google sign-in (a
 dedicated Cloudflare Worker, see `workers/`) adds cross-device progress sync
 on top — it's never a wall in front of the content.
 
@@ -28,14 +28,15 @@ to stop the server. See "Run Locally" below for full details and prerequisites.
 | Build tool | Vite                                      |
 | Styling    | Tailwind CSS (dark theme, glass-card panels) |
 | State      | Local React state + `localStorage` (source of truth); optional Google login for cross-device sync via a dedicated Worker (`workers/auth.ts`) |
-| Hosting    | GitHub Pages via GitHub Actions           |
+| Hosting    | Cloudflare Pages via GitHub Actions (GitHub Pages kept as a manual rollback) |
 | Versioning | Semantic Versioning + `CHANGELOG.md`      |
 
 ## Project Structure
 
 ```text
 german_skill/
-├── .github/workflows/deploy.yml   # CI: build + deploy to GitHub Pages on push to main
+├── .github/workflows/deploy-cloudflare-pages.yml   # CI: build + deploy to Cloudflare Pages on push to main
+├── .github/workflows/deploy.yml   # GitHub Pages — manual rollback only (workflow_dispatch)
 ├── src/
 │   ├── types.ts                     # Shared TS types (Lesson, Module, ProgressState, etc.)
 │   ├── data/
@@ -90,7 +91,7 @@ Open that URL in your browser. Any edit to files in `src/` (e.g. tweaking
 
 ### Build & preview the production bundle
 
-Since GitHub Pages serves the *built* output (not the dev server), it's worth
+Since Cloudflare Pages serves the *built* output (not the dev server), it's worth
 testing this too before deploying:
 
 ```bash
@@ -111,36 +112,31 @@ npm run preview    # serves the production build locally
   `npm config get https-proxy`, or try `npm install --verbose` to see where
   it's stuck.
 
-## Deploy to GitHub Pages
+## Deploy
 
-This repo ships with `.github/workflows/deploy.yml`, mirroring the CI-driven
-release pattern used in `ajch_platform`.
+**Cloudflare Pages** (`.github/workflows/deploy-cloudflare-pages.yml`) is the
+production target — project `ajch-hallo`, mirroring `ajch_platform`'s own
+Cloudflare Pages hosting and sharing the same Cloudflare account/zone the
+auth Worker (`workers/auth.ts`, `api.hallo.aaryaai.dev`) lives in. Auto-deploys
+on every push to `main`.
 
-1. Create the repo (e.g. `german-skillup`) and push this folder as its root:
-   ```bash
-   cd german_skill
-   git init
-   git add .
-   git commit -m "chore: initial commit — Deutsch SkillUp v0.1.0"
-   git branch -M main
-   git remote add origin https://github.com/ajeetchouksey/german-skillup.git
-   git push -u origin main
-   ```
-2. In the repo: **Settings → Pages → Source → GitHub Actions** (not "Deploy
-   from branch" — the included workflow handles the build + deploy).
-3. Push to `main` and the workflow builds and deploys automatically.
-4. Brand domain: **`hallo.aaryaai.dev`** — "hallo" (the one German word
-   everyone already recognizes), matching the `aaryaai.dev` subdomain
-   convention used across the AaryaAI family (e.g. `ajch_platform`'s
-   `aaryaai.dev`).
-   - `public/CNAME` already contains `hallo.aaryaai.dev`, so GitHub Pages
-     serves the custom domain automatically once the DNS `CNAME` record for
-     `hallo` points at `<user>.github.io`.
-   - `vite.config.ts` sets `base: "/"` accordingly (custom-domain root, not
-     a `/german-skillup/` project-site subpath).
-   - Until DNS/CNAME is live, the fallback project-site URL is
-     `https://ajeetchouksey.github.io/german-skillup/` — but note `base`
-     would need to switch back to `"/german-skillup/"` for that path to work.
+One-time setup:
+1. Create a Cloudflare API token (dash.cloudflare.com/profile/api-tokens →
+   "Edit Cloudflare Workers" template, or custom-scoped to Account →
+   Cloudflare Pages:Edit) and add it as a repo secret: `gh secret set CLOUDFLARE_API_TOKEN`.
+2. Attach `hallo.aaryaai.dev` as the project's custom domain — Cloudflare
+   dashboard → Workers & Pages → `ajch-hallo` → Custom domains → Add. (Not
+   scriptable via `wrangler` — there's no `pages domain` subcommand in the
+   version this repo uses.) Since `aaryaai.dev` is already a Cloudflare zone
+   on this account, Cloudflare manages the DNS record for you.
+3. Set `VITE_AUTH_WORKER_URL`/`VITE_GOOGLE_CLIENT_ID` as repo variables
+   (Settings → Secrets and variables → Actions → Variables) once the auth
+   Worker's Google secrets are set (see `wrangler.toml`) — optional, login
+   stays cleanly disabled without them.
+
+**GitHub Pages** (`.github/workflows/deploy.yml`, `public/CNAME`) is kept as
+a manual rollback path only — trigger it from the Actions tab
+(`workflow_dispatch`), it no longer auto-deploys on push.
 
 ## Versioning
 

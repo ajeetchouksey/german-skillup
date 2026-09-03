@@ -1,0 +1,63 @@
+name: Deploy to Cloudflare Pages
+# Production deployment target (hallo.aaryaai.dev — DNS points here once the
+# Cloudflare Pages custom domain is attached, a manual dashboard step — see
+# CLAUDE.md's Deploy section). Runs on every push to main. deploy.yml
+# (GitHub Pages) is kept as a workflow_dispatch-only manual rollback path.
+#
+# One-time setup required before this workflow can run:
+#   1. Create a Cloudflare API token: https://dash.cloudflare.com/profile/api-tokens
+#        -> "Create Token" -> "Edit Cloudflare Workers" template (includes Pages:Edit),
+#           or a custom token scoped to Account.Cloudflare Pages:Edit only.
+#   2. Add it as a repo secret:
+#        gh secret set CLOUDFLARE_API_TOKEN
+#      (or Settings -> Secrets and variables -> Actions -> New repository secret)
+#   3. The Cloudflare account ID is not secret - set below directly (from
+#      `wrangler whoami`: Ajeetchouksey27@hotmail.com's Account).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-pages
+  cancel-in-progress: false
+
+env:
+  CLOUDFLARE_ACCOUNT_ID: e898ebfc013f074cde300a1ed1c16418
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        env:
+          # Both public by design (a Worker URL and an OAuth client id, not
+          # secrets - the matching client *secret* only ever lives server-side
+          # as a `wrangler secret`, never here). Unset repo variables build to
+          # empty strings, which keeps login correctly disabled (isAuthConfigured()
+          # stays false, LoginWidget renders nothing) until both are set in
+          # Settings -> Secrets and variables -> Actions -> Variables.
+          VITE_AUTH_WORKER_URL: ${{ vars.VITE_AUTH_WORKER_URL }}
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
+        run: npm run build
+
+      - name: Deploy to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npx wrangler pages deploy dist --project-name=ajch-hallo --branch=main

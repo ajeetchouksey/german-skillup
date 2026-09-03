@@ -86,4 +86,8 @@ Worker is deployed (`deutsch-skillup-auth`, live at `api.hallo.aaryaai.dev`, its
 
 ### Deploy
 
-GitHub Pages via `.github/workflows/deploy.yml`, custom domain `hallo.aaryaai.dev` (`public/CNAME`), `vite.config.ts` `base: "/"` accordingly. The auth Worker (above) deploys separately via `wrangler deploy` to `api.hallo.aaryaai.dev` — see `wrangler.toml` for the one-time setup (KV namespace, D1 database, secrets) required before that works.
+**Cloudflare Pages** (`.github/workflows/deploy-cloudflare-pages.yml`, project `ajch-hallo`) is the production target, matching `ajch_platform`'s own hosting and sharing the same Cloudflare account/zone the auth Worker lives in. Auto-deploys on every push to `main` via `wrangler pages deploy dist`. One-time setup: create a `CLOUDFLARE_API_TOKEN` (Account → Cloudflare Pages:Edit) and add it as a repo secret (see the workflow's own header comment); attach `hallo.aaryaai.dev` as the project's custom domain in the Cloudflare dashboard (Workers & Pages → `ajch-hallo` → Custom domains — not scriptable via this `wrangler` version, no `pages domain` subcommand exists).
+
+GitHub Pages (`.github/workflows/deploy.yml`, `public/CNAME`) is kept as a `workflow_dispatch`-only manual rollback path — it no longer auto-deploys on push.
+
+The auth Worker (above) deploys separately via `wrangler deploy` (from the repo root, using its own `wrangler.toml`) to `api.hallo.aaryaai.dev` — see that file for the one-time setup (KV namespace, D1 database, secrets) required before it works. Running any `wrangler pages` command from this same directory prints a harmless warning that `wrangler.toml` is "missing pages_build_output_dir" — that's expected, since that file is the Worker's config, not a Pages config; it's ignored for Pages commands.
