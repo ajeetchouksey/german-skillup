@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, Clock, Play, SkipForward } from "lucide-react";
 import { Badge, Button, GlassCard, SectionHeader } from "@/components/ui";
-import { PASS_MARK } from "@/data/examBlueprint";
+import { EXAM_BLUEPRINTS } from "@/data/examBlueprint";
+import type { CEFRLevel } from "@/types";
 
 interface Section {
   id: string;
@@ -12,6 +13,11 @@ interface Section {
   strategies: string[];
 }
 
+// A1-specific simulator content (timer minutes, max scores, instructions).
+// Not yet derived from EXAM_BLUEPRINTS — a future level's blueprint alone
+// won't make this simulator interactive for that level until this is
+// authored per-level too (tracked as a known gap, not part of the
+// examBlueprint registry refactor).
 const SECTIONS: Section[] = [
   {
     id: "hoeren",
@@ -51,7 +57,13 @@ type Phase = "ready" | "active" | "scoring" | "done";
 
 function pad(n: number) { return String(n).padStart(2, "0"); }
 
-export function ExamSimulator() {
+interface ExamSimulatorProps {
+  level: CEFRLevel;
+}
+
+export function ExamSimulator({ level }: ExamSimulatorProps) {
+  const blueprint = EXAM_BLUEPRINTS[level];
+
   const [sectionIdx, setSectionIdx] = useState(0);
   const [phase, setPhase] = useState<Phase>("ready");
   const [secondsLeft, setSecondsLeft] = useState(0);
@@ -72,6 +84,17 @@ export function ExamSimulator() {
     }
     return () => window.clearInterval(intervalRef.current);
   }, [phase, secondsLeft]);
+
+  if (!blueprint) {
+    return (
+      <div className="space-y-5">
+        <SectionHeader title="Exam Simulator" icon={Clock} as="h2" iconColor="text-blue-400" />
+        <GlassCard accent="slate" className="p-6 text-center text-sm text-muted">
+          Mock exam simulator for {level} is coming soon.
+        </GlassCard>
+      </div>
+    );
+  }
 
   const startSection = () => {
     setSecondsLeft(section.minutes * 60);
@@ -95,7 +118,7 @@ export function ExamSimulator() {
 
   const totalMax = SECTIONS.reduce((s, sec) => s + sec.maxScore, 0);
   const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
-  const passed = totalScore >= PASS_MARK.required;
+  const passed = totalScore >= blueprint.passMark.required;
 
   const timerColor = secondsLeft > section.minutes * 30 ? "text-emerald-400"
     : secondsLeft > section.minutes * 12 ? "text-amber-400" : "text-red-400";
@@ -109,7 +132,7 @@ export function ExamSimulator() {
           <p className="text-xl font-bold text-white mb-1">{passed ? "Bestanden!" : "Weiter üben!"}</p>
           <p className="text-sm text-muted mb-4">
             Total: <b className={passed ? "text-emerald-400" : "text-red-400"}>{totalScore}/{totalMax}</b>
-            {" "}· Pass mark: {PASS_MARK.required}/{PASS_MARK.total}
+            {" "}· Pass mark: {blueprint.passMark.required}/{blueprint.passMark.total}
           </p>
           <div className="grid grid-cols-2 gap-2 mb-4">
             {SECTIONS.map((sec) => (

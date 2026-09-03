@@ -15,7 +15,7 @@ export function Welcome({ data, progress, onOpenModule }: WelcomeProps) {
 
   return (
     <>
-      <ExamOverview />
+      <ExamOverview level={data.level} />
 
       <GlassCard className="p-6 sm:p-8">
         <SectionHeader
