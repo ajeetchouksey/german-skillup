@@ -26,15 +26,21 @@ export function Header({ level, onHome, onSidebarToggle }: HeaderProps) {
 
         <button
           onClick={onHome}
-          className="flex items-center gap-2.5 transition-opacity hover:opacity-90"
+          className="group flex items-center transition-opacity hover:opacity-90"
+          style={{ gap: "clamp(6px, 1vw, 10px)" }}
         >
-          <img src="/aaryaai-mark.svg" alt="AaryaAI" className="h-7 w-7 shrink-0" />
-          <div className="flex flex-col leading-none">
-            <span className="text-sm font-bold tracking-tight text-white" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
-              Deutsch SkillUp
-            </span>
-            <span className="hidden text-[9px] text-muted sm:block">Learn German A1 → C1 · by AaryaAI</span>
-          </div>
+          <img
+            src="/logo-horizontal-dark.svg"
+            alt="AaryaAI"
+            className="shrink-0 transition-transform duration-300 group-hover:scale-[1.03]"
+            style={{ height: "clamp(22px, 2.6vw, 30px)", width: "auto" }}
+          />
+          <span
+            className="hidden select-none font-medium tracking-[0.08em] text-muted sm:block"
+            style={{ fontSize: "clamp(9px, 0.85vw, 12px)" }}
+          >
+            Hallo Deutsch
+          </span>
         </button>
       </div>
 

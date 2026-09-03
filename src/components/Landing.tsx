@@ -45,9 +45,18 @@ export function Landing({ onStart }: LandingProps) {
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-20 flex h-14 items-center justify-between bg-slate-800/75 px-6 backdrop-blur-md relative">
-        <div className="flex items-center gap-2.5">
-          <img src="/aaryaai-mark.svg" alt="AaryaAI" className="h-7 w-7" />
-          <span className="text-sm font-bold tracking-tight text-white">Deutsch SkillUp</span>
+        <div className="flex items-center" style={{ gap: "clamp(6px, 1vw, 10px)" }}>
+          <img
+            src="/logo-horizontal-dark.svg"
+            alt="AaryaAI"
+            style={{ height: "clamp(22px, 2.6vw, 30px)", width: "auto" }}
+          />
+          <span
+            className="hidden select-none font-medium tracking-[0.08em] text-muted sm:block"
+            style={{ fontSize: "clamp(9px, 0.85vw, 12px)" }}
+          >
+            Hallo Deutsch
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <LoginWidget />
