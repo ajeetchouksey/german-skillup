@@ -1,19 +1,22 @@
 import { useEffect, useRef, useState } from "react";
 import { Mic, Pause, Play, RefreshCw, Timer } from "lucide-react";
 import { Button, GlassCard, SectionHeader } from "@/components/ui";
+import { useSpeechRecognition } from "@/lib/useSpeechRecognition";
 
 // ─── Speaking prompts drawn from common A1 Goethe Sprechen tasks ─────────────
+// keywords: a few words a reasonable answer to this prompt would use — checked
+// against the transcript as a coarse relevance signal, not exhaustive coverage.
 const PROMPTS = [
-  { topic: "Persönliche Vorstellung", prompt: "Stellen Sie sich vor: Name, Alter, Wohnort, Beruf, Hobbys, Sprachen.", tip: "Use 6–7 short sentences. Spell your surname." },
-  { topic: "Familie", prompt: "Erzählen Sie über Ihre Familie: Wie viele Personen? Namen? Was machen sie?", tip: "Use 'Ich habe … Meine Mutter heißt … Sie arbeitet als …'" },
-  { topic: "Wohnen", prompt: "Beschreiben Sie Ihre Wohnung: Wie viele Zimmer? Wo? Wie ist sie?", tip: "Use haben + accusative: 'Ich habe ein Schlafzimmer, eine Küche …'" },
-  { topic: "Tagesablauf", prompt: "Erzählen Sie über einen normalen Tag: Wann stehen Sie auf? Was machen Sie?", tip: "Use separable verbs with prefix at end. Add time adverbs: zuerst, dann, danach." },
-  { topic: "Essen und Trinken", prompt: "Was essen und trinken Sie gern? Was essen Sie zum Frühstück?", tip: "Use gern/nicht gern + möchten + accusative article." },
-  { topic: "Einkaufen", prompt: "Sie sind im Geschäft. Fragen Sie nach Farbe, Größe und Preis eines Artikels.", tip: "Ich suche … Haben Sie … in Blau? Was kostet …?" },
-  { topic: "Gesundheit", prompt: "Sie fühlen sich nicht gut. Beschreiben Sie Ihre Symptome. Was tut weh?", tip: "Mir tut … weh. Ich habe Fieber/Husten. Ich bin krank." },
-  { topic: "Freizeit", prompt: "Was machen Sie in Ihrer Freizeit? Haben Sie ein Hobby?", tip: "Ich … gern. Ich spiele … Ich gehe … Ich treffe …" },
-  { topic: "Reisen", prompt: "Wohin reisen Sie gern? Wie fahren Sie? Wo schlafen Sie?", tip: "Ich fahre mit dem Zug/Auto/Flugzeug. Ich übernachte in …" },
-  { topic: "Arbeit", prompt: "Was ist Ihr Beruf? Wo arbeiten Sie? Wann fängt Ihre Arbeit an?", tip: "Ich bin … von Beruf. Ich arbeite bei … Die Arbeit fängt um … an." },
+  { topic: "Persönliche Vorstellung", prompt: "Stellen Sie sich vor: Name, Alter, Wohnort, Beruf, Hobbys, Sprachen.", tip: "Use 6–7 short sentences. Spell your surname.", keywords: ["heiße", "komme", "wohne", "Jahre"] },
+  { topic: "Familie", prompt: "Erzählen Sie über Ihre Familie: Wie viele Personen? Namen? Was machen sie?", tip: "Use 'Ich habe … Meine Mutter heißt … Sie arbeitet als …'", keywords: ["Familie", "Mutter", "Vater", "Geschwister"] },
+  { topic: "Wohnen", prompt: "Beschreiben Sie Ihre Wohnung: Wie viele Zimmer? Wo? Wie ist sie?", tip: "Use haben + accusative: 'Ich habe ein Schlafzimmer, eine Küche …'", keywords: ["Wohnung", "Zimmer", "Küche"] },
+  { topic: "Tagesablauf", prompt: "Erzählen Sie über einen normalen Tag: Wann stehen Sie auf? Was machen Sie?", tip: "Use separable verbs with prefix at end. Add time adverbs: zuerst, dann, danach.", keywords: ["stehe", "auf", "dann", "danach"] },
+  { topic: "Essen und Trinken", prompt: "Was essen und trinken Sie gern? Was essen Sie zum Frühstück?", tip: "Use gern/nicht gern + möchten + accusative article.", keywords: ["esse", "trinke", "Frühstück"] },
+  { topic: "Einkaufen", prompt: "Sie sind im Geschäft. Fragen Sie nach Farbe, Größe und Preis eines Artikels.", tip: "Ich suche … Haben Sie … in Blau? Was kostet …?", keywords: ["suche", "kostet", "Größe"] },
+  { topic: "Gesundheit", prompt: "Sie fühlen sich nicht gut. Beschreiben Sie Ihre Symptome. Was tut weh?", tip: "Mir tut … weh. Ich habe Fieber/Husten. Ich bin krank.", keywords: ["weh", "Fieber", "krank"] },
+  { topic: "Freizeit", prompt: "Was machen Sie in Ihrer Freizeit? Haben Sie ein Hobby?", tip: "Ich … gern. Ich spiele … Ich gehe … Ich treffe …", keywords: ["gern", "Hobby", "spiele"] },
+  { topic: "Reisen", prompt: "Wohin reisen Sie gern? Wie fahren Sie? Wo schlafen Sie?", tip: "Ich fahre mit dem Zug/Auto/Flugzeug. Ich übernachte in …", keywords: ["fahre", "Zug", "übernachte"] },
+  { topic: "Arbeit", prompt: "Was ist Ihr Beruf? Wo arbeiten Sie? Wann fängt Ihre Arbeit an?", tip: "Ich bin … von Beruf. Ich arbeite bei … Die Arbeit fängt um … an.", keywords: ["Beruf", "arbeite", "Arbeit"] },
 ];
 
 const CHECKLIST = [
@@ -33,8 +36,11 @@ export function SpeakingCoach() {
   const [running, setRunning] = useState(false);
   const [finished, setFinished] = useState(false);
   const [checks, setChecks] = useState<boolean[]>(Array(CHECKLIST.length).fill(false));
+  const [transcript, setTranscript] = useState("");
+  const [micStarted, setMicStarted] = useState(false);
   const intervalRef = useRef<number | undefined>(undefined);
 
+  const { isSupported, listenFreeform, stop: stopMic } = useSpeechRecognition();
   const current = PROMPTS[promptIdx];
 
   useEffect(() => {
@@ -51,11 +57,22 @@ export function SpeakingCoach() {
     return () => window.clearInterval(intervalRef.current);
   }, [running, secondsLeft]);
 
+  const startOrResume = () => {
+    if (!micStarted && isSupported) {
+      setMicStarted(true);
+      listenFreeform(setTranscript);
+    }
+    setRunning((r) => !r);
+  };
+
   const reset = () => {
     setRunning(false);
     setSecondsLeft(120);
     setFinished(false);
     setChecks(Array(CHECKLIST.length).fill(false));
+    setTranscript("");
+    setMicStarted(false);
+    stopMic();
   };
 
   const nextPrompt = () => {
@@ -66,6 +83,11 @@ export function SpeakingCoach() {
   const toggle = (i: number) => setChecks((c) => c.map((v, idx) => (idx === i ? !v : v)));
 
   const score = checks.filter(Boolean).length;
+
+  const elapsedSeconds = 120 - secondsLeft;
+  const wordCount = transcript.trim() ? transcript.trim().split(/\s+/).length : 0;
+  const wpm = elapsedSeconds > 0 ? Math.round((wordCount / elapsedSeconds) * 60) : 0;
+  const matchedKeywords = current.keywords.filter((k) => transcript.toLowerCase().includes(k.toLowerCase()));
 
   const timerColor =
     secondsLeft > 60 ? "text-emerald-400" : secondsLeft > 30 ? "text-amber-400" : "text-red-400";
@@ -111,7 +133,7 @@ export function SpeakingCoach() {
               variant="outline"
               size="sm"
               icon={running ? Pause : Play}
-              onClick={() => setRunning((r) => !r)}
+              onClick={startOrResume}
             >
               {running ? "Pause" : secondsLeft === 120 ? "Start" : "Resume"}
             </Button>
@@ -122,7 +144,34 @@ export function SpeakingCoach() {
         {finished && (
           <p className="text-sm text-amber-300 font-medium">Time's up! Now complete the self-assessment below.</p>
         )}
+        {!isSupported && (
+          <p className="text-xs text-muted">
+            Your browser doesn't support microphone-based signal — the timer and self-assessment below still work.
+          </p>
+        )}
       </GlassCard>
+
+      {/* Automated signal — a proxy, not a replacement for self-assessment below */}
+      {isSupported && micStarted && (
+        <GlassCard className="p-5">
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Automated signal</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-md border border-border bg-bg-alt p-3 text-center">
+              <div className="text-xl font-bold text-white">{wordCount > 0 ? wpm : "—"}</div>
+              <div className="text-[11px] text-slate-500">words / min</div>
+            </div>
+            <div className="rounded-md border border-border bg-bg-alt p-3 text-center">
+              <div className="text-xl font-bold text-white">{matchedKeywords.length}/{current.keywords.length}</div>
+              <div className="text-[11px] text-slate-500">expected words used</div>
+            </div>
+          </div>
+          {transcript && (
+            <p className="mt-3 text-xs text-slate-500">
+              Heard so far: <span className="italic text-slate-400">"{transcript}"</span>
+            </p>
+          )}
+        </GlassCard>
+      )}
 
       {/* Self-assessment */}
       <GlassCard className="p-5">

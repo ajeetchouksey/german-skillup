@@ -14,13 +14,13 @@ export function useSpeech() {
     return () => window.speechSynthesis?.removeEventListener("voiceschanged", handler);
   }, []);
 
-  const speak = useCallback((text: string) => {
+  const speak = useCallback((text: string, rate: number = RATE) => {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
 
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = "de-DE";
-    utter.rate = RATE;
+    utter.rate = rate;
 
     // Prefer a native German voice if available
     const voices = window.speechSynthesis.getVoices();

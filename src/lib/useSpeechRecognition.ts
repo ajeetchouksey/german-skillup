@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export type RecognitionResult = {
   heard: string;
@@ -44,32 +44,39 @@ export interface SpeechRecognitionState {
   result: RecognitionResult | null;
   error: string | null;
   isSupported: boolean;
+  activeSentenceIndex: number | null;
   listen: (target: string) => void;
+  listenContinuous: (sentences: string[], onSentenceResult: (index: number, result: RecognitionResult) => void, onDone?: () => void) => void;
+  listenFreeform: (onUpdate: (fullTranscript: string) => void) => void;
   stop: () => void;
   clear: () => void;
-}
-
-declare global {
-  interface Window {
-    SpeechRecognition: typeof SpeechRecognition;
-    webkitSpeechRecognition: typeof SpeechRecognition;
-  }
 }
 
 export function useSpeechRecognition(): SpeechRecognitionState {
   const [listening, setListening] = useState(false);
   const [result, setResult] = useState<RecognitionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activeSentenceIndex, setActiveSentenceIndex] = useState<number | null>(null);
   const recogRef = useRef<SpeechRecognition | null>(null);
 
   const isSupported =
     typeof window !== "undefined" &&
     ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
 
+  // listenContinuous/listenFreeform run indefinitely by design — a consumer
+  // that unmounts (e.g. switching Practice Lab tabs) without calling stop()
+  // would otherwise leave the mic listening. Stop unconditionally on unmount,
+  // regardless of which mode (or none) was active.
+  useEffect(() => {
+    return () => { recogRef.current?.stop(); };
+  }, []);
+
+  // One-shot: score a single short phrase against a target. Used by PronounceChecker.
   const listen = useCallback((target: string) => {
     if (!isSupported) { setError("Speech recognition is not supported in this browser."); return; }
     setResult(null);
     setError(null);
+    setActiveSentenceIndex(null);
 
     const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition;
     const recog = new SR();
@@ -101,8 +108,94 @@ export function useSpeechRecognition(): SpeechRecognitionState {
     recog.start();
   }, [isSupported]);
 
-  const stop  = useCallback(() => { recogRef.current?.stop(); setListening(false); }, []);
+  // Continuous: read a passage sentence-by-sentence. Each finalized utterance
+  // is scored against the current sentence in order (reuses checkPronunciation,
+  // no new scoring algorithm), then advances to the next sentence.
+  const listenContinuous = useCallback((
+    sentences: string[],
+    onSentenceResult: (index: number, result: RecognitionResult) => void,
+    onDone?: () => void,
+  ) => {
+    if (!isSupported) { setError("Speech recognition is not supported in this browser."); return; }
+    if (sentences.length === 0) return;
+    setResult(null);
+    setError(null);
+
+    const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition;
+    const recog = new SR();
+    recog.lang = "de-DE";
+    recog.continuous = true;
+    recog.interimResults = true;
+    recog.maxAlternatives = 1;
+
+    let sentenceIdx = 0;
+    setActiveSentenceIndex(0);
+
+    recog.onstart = () => setListening(true);
+    recog.onend   = () => setListening(false);
+    recog.onerror = (e) => {
+      setListening(false);
+      if (e.error !== "no-speech") setError(`Mic error: ${e.error}`);
+    };
+    recog.onresult = (e) => {
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const res = e.results[i];
+        if (!res.isFinal || sentenceIdx >= sentences.length) continue;
+        const heard = res[0].transcript;
+        const scored = checkPronunciation(sentences[sentenceIdx], heard);
+        onSentenceResult(sentenceIdx, scored);
+        sentenceIdx += 1;
+        if (sentenceIdx >= sentences.length) {
+          setActiveSentenceIndex(null);
+          recog.stop();
+          onDone?.();
+        } else {
+          setActiveSentenceIndex(sentenceIdx);
+        }
+      }
+    };
+
+    recogRef.current = recog;
+    recog.start();
+  }, [isSupported]);
+
+  // Continuous, no fixed target — accumulates finalized transcript chunks and
+  // reports the running total. Used for open-ended free-response speaking
+  // (no single "correct" answer to score against, unlike listen/listenContinuous).
+  const listenFreeform = useCallback((onUpdate: (fullTranscript: string) => void) => {
+    if (!isSupported) { setError("Speech recognition is not supported in this browser."); return; }
+    setError(null);
+
+    const SR = window.SpeechRecognition ?? window.webkitSpeechRecognition;
+    const recog = new SR();
+    recog.lang = "de-DE";
+    recog.continuous = true;
+    recog.interimResults = true;
+    recog.maxAlternatives = 1;
+
+    let transcript = "";
+
+    recog.onstart = () => setListening(true);
+    recog.onend   = () => setListening(false);
+    recog.onerror = (e) => {
+      setListening(false);
+      if (e.error !== "no-speech") setError(`Mic error: ${e.error}`);
+    };
+    recog.onresult = (e) => {
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const res = e.results[i];
+        if (!res.isFinal) continue;
+        transcript = `${transcript} ${res[0].transcript}`.trim();
+        onUpdate(transcript);
+      }
+    };
+
+    recogRef.current = recog;
+    recog.start();
+  }, [isSupported]);
+
+  const stop  = useCallback(() => { recogRef.current?.stop(); setListening(false); setActiveSentenceIndex(null); }, []);
   const clear = useCallback(() => { setResult(null); setError(null); }, []);
 
-  return { listening, result, error, isSupported, listen, stop, clear };
+  return { listening, result, error, isSupported, activeSentenceIndex, listen, listenContinuous, listenFreeform, stop, clear };
 }

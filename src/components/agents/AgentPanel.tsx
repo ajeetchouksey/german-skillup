@@ -1,11 +1,15 @@
 import { useState } from "react";
-import { Clock, Mic, Wand2 } from "lucide-react";
+import { BookOpen, Clock, Mic, Wand2 } from "lucide-react";
 import { GlassCard } from "@/components/ui";
+import type { CEFRLevel } from "@/types";
+import { PASSAGES } from "@/data/passages";
 import { WritingChecker } from "./WritingChecker";
 import { SpeakingCoach } from "./SpeakingCoach";
 import { ExamSimulator } from "./ExamSimulator";
+import { ReadAloudPractice } from "../ReadAloudPractice";
 
 const TABS = [
+  { id: "reading", label: "Read Aloud", icon: BookOpen, description: "Passage + mic-scored pronunciation" },
   { id: "writing", label: "Writing Checker", icon: Wand2, description: "Rule-based A1 grammar feedback" },
   { id: "speaking", label: "Speaking Coach", icon: Mic, description: "Timer + prompts + self-assessment" },
   { id: "exam", label: "Exam Simulator", icon: Clock, description: "Full 4-section timed mock exam" },
@@ -13,13 +17,18 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]["id"];
 
-export function AgentPanel() {
-  const [active, setActive] = useState<TabId>("writing");
+interface AgentPanelProps {
+  level: CEFRLevel;
+}
+
+export function AgentPanel({ level }: AgentPanelProps) {
+  const [active, setActive] = useState<TabId>("reading");
+  const passage = PASSAGES[level][0];
 
   return (
     <div className="space-y-6">
       {/* Tab bar */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const isActive = active === tab.id;
@@ -39,9 +48,18 @@ export function AgentPanel() {
       </div>
 
       {/* Panel */}
+      {active === "reading" && (
+        passage ? (
+          <ReadAloudPractice passage={passage} />
+        ) : (
+          <GlassCard className="p-6 text-center text-sm text-muted">
+            Read-aloud passages for {level} are coming soon.
+          </GlassCard>
+        )
+      )}
       {active === "writing" && <WritingChecker />}
       {active === "speaking" && <SpeakingCoach />}
-      {active === "exam" && <ExamSimulator />}
+      {active === "exam" && <ExamSimulator level={level} />}
     </div>
   );
 }

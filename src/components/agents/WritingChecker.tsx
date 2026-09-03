@@ -3,7 +3,7 @@ import { AlertTriangle, CheckCircle2, Info, RotateCcw, Wand2 } from "lucide-reac
 import { Badge, Button, GlassCard, SectionHeader } from "@/components/ui";
 import { WritingPad } from "@/components/WritingPad";
 
-interface Feedback {
+export interface Feedback {
   type: "ok" | "warn" | "info";
   message: string;
 }
@@ -13,11 +13,16 @@ interface Feedback {
 const WRONG_MODAL = [
   { pattern: /\bich will\b/gi, fix: "ich möchte", note: "'ich will' sounds blunt; use 'ich möchte' in polite A1 contexts" },
   { pattern: /\bdu bist\s+\d+\b/gi, fix: "du bist … Jahre alt", note: "Age needs 'Jahre alt': 'Ich bin 25 Jahre alt.'" },
+  { pattern: /\bich bin gehen\b/gi, fix: "ich gehe", note: "Don't combine 'bin' with an infinitive here — just conjugate: 'ich gehe', not 'ich bin gehen'." },
+  { pattern: /\bviele[nm]?\s+dank\b/gi, fix: "vielen Dank", note: "The fixed phrase is 'vielen Dank' (accusative), not 'viele Dank'." },
 ];
 
-const SEPARABLE_VERBS = ["aufstehen", "aufwachen", "einkaufen", "anrufen", "anfangen", "aufhören", "fernsehen"];
+const SEPARABLE_VERBS = [
+  "aufstehen", "aufwachen", "einkaufen", "anrufen", "anfangen", "aufhören", "fernsehen",
+  "mitkommen", "ausgehen", "zurückkommen", "vorbereiten", "teilnehmen", "abholen",
+];
 
-function analyze(text: string): Feedback[] {
+export function analyze(text: string): Feedback[] {
   const feedback: Feedback[] = [];
   if (!text.trim()) return feedback;
 

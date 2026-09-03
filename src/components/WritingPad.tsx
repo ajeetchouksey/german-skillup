@@ -6,6 +6,11 @@ interface WritingPadProps {
   placeholder?: string;
   targetWords?: number;
   label?: string;
+  // Optionally controlled — pass both to let a parent read/reset the text
+  // (e.g. to run it through WritingChecker's analyze()). Omit both for the
+  // original uncontrolled behavior.
+  value?: string;
+  onChange?: (text: string) => void;
 }
 
 function countWords(text: string) {
@@ -16,9 +21,14 @@ export function WritingPad({
   placeholder = "Schreiben Sie hier auf Deutsch…",
   targetWords = 30,
   label = "Your answer",
+  value,
+  onChange,
 }: WritingPadProps) {
-  const [text, setText] = useState("");
+  const [internalText, setInternalText] = useState("");
   const [copied, setCopied] = useState(false);
+  const controlled = value !== undefined && onChange !== undefined;
+  const text = controlled ? value : internalText;
+  const setText = controlled ? onChange : setInternalText;
   const words = countWords(text);
 
   const color =
