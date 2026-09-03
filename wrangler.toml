@@ -31,23 +31,21 @@ database_name = "deutsch-skillup-progress"
 database_id   = "387af76a-8482-48fe-ac8d-3ab4ef0fa7ff"
 
 # ── Secrets — set via CLI, never commit values ────────────────────────────────
-# Status: KV namespace, D1 database, schema, and SESSION_SIGNING_KEY are all
-# live. Login itself is NOT live yet — the two Google secrets below are still
-# unset, so the OAuth callback fails closed with #auth_error=server_misconfigured
-# (see workers/auth.ts's own check) rather than doing anything unsafe.
+# Status: KV namespace, D1 database, schema, and all three secrets are live.
 #
-#   wrangler secret put GOOGLE_CLIENT_ID          [ ] not yet set
-#     → the SAME Google OAuth Client ID ajch_platform's workers/subscribe.ts
-#       already uses (per project decision: one Google Cloud OAuth app, two
-#       registered redirect URIs — not a second app). Before this works, add
-#       https://api.hallo.aaryaai.dev/oauth/google/callback as an ADDITIONAL
-#       authorized redirect URI on that existing client in Google Cloud
-#       Console → APIs & Services → Credentials → (the client) — this is a
+#   wrangler secret put GOOGLE_CLIENT_ID          [x] set 2026-09-03
+#     → a DEDICATED Google OAuth client (939308613423-pek1v3h8ap1ncil0e676-
+#       lsciblru8kue.apps.googleusercontent.com) — not shared with
+#       ajch_platform's own client after all (the original plan was to reuse
+#       it, but a dedicated client turned out cleaner: zero coupling, no risk
+#       of ever touching ajch_platform's live login while managing this
+#       one). Its only authorized redirect URI is
+#       https://api.hallo.aaryaai.dev/oauth/google/callback, set in Google
+#       Cloud Console → APIs & Services → Credentials → (this client) — a
 #       manual step, no API/CLI can do it.
 #
-#   wrangler secret put GOOGLE_CLIENT_SECRET      [ ] not yet set
-#     → the matching Google OAuth client secret (same value as ajch_platform's,
-#       NEVER commit it).
+#   wrangler secret put GOOGLE_CLIENT_SECRET      [x] set 2026-09-03
+#     → the matching secret for the dedicated client above.
 #
 #   wrangler secret put SESSION_SIGNING_KEY       [x] set 2026-09-03
 #     → a random 32-byte hex string, deliberately NOT shared with
