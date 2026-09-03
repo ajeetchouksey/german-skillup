@@ -3,6 +3,7 @@ import { LEVELS, AVAILABLE_LEVELS } from "@/data/levels";
 import { getTotalLessonCount } from "@/lib/progress";
 import { Button, GlassCard } from "./ui";
 import { Footer } from "./Footer";
+import { LoginWidget } from "./LoginWidget";
 
 interface LandingProps {
   onStart: () => void;
@@ -24,8 +25,8 @@ const FEATURES = [
   {
     icon: ShieldCheck,
     accent: "emerald" as const,
-    title: "No login, ever",
-    body: "No account, no server, no tracking. Your XP, streak, and completed lessons live only in your browser's local storage.",
+    title: "No account required",
+    body: "Your XP, streak, and completed lessons live in your browser by default — nothing to sign up for. Sign in with Google only if you want progress to follow you across devices.",
   },
   {
     icon: Sparkles,
@@ -48,23 +49,26 @@ export function Landing({ onStart }: LandingProps) {
           <img src="/aaryaai-mark.svg" alt="AaryaAI" className="h-7 w-7" />
           <span className="text-sm font-bold tracking-tight text-white">Deutsch SkillUp</span>
         </div>
-        <Button
-          href="https://github.com/ajeetchouksey/german-skillup"
-          target="_blank"
-          rel="noopener noreferrer"
-          icon={Github}
-          variant="ghost"
-          size="sm"
-        >
-          GitHub
-        </Button>
+        <div className="flex items-center gap-2">
+          <LoginWidget />
+          <Button
+            href="https://github.com/ajeetchouksey/german-skillup"
+            target="_blank"
+            rel="noopener noreferrer"
+            icon={Github}
+            variant="ghost"
+            size="sm"
+          >
+            GitHub
+          </Button>
+        </div>
         <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent/30 to-transparent" />
       </header>
 
       <main className="flex-1 px-5 sm:px-9">
         {/* Hero */}
         <section className="mx-auto flex max-w-[760px] flex-col items-center pt-14 pb-16 text-center sm:pt-20">
-          <p className="page-eyebrow">AaryaAI · Free, no-login German learning</p>
+          <p className="page-eyebrow">AaryaAI · Free German learning, no account required</p>
           <h1 className="heading-gradient text-4xl font-extrabold leading-tight sm:text-5xl">
             Speak German with real confidence.
           </h1>
