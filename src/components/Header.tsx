@@ -13,7 +13,7 @@ interface HeaderProps {
 
 export function Header({ level, onHome, onSidebarToggle }: HeaderProps) {
   return (
-    <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-border bg-bg/90 px-4 backdrop-blur-md">
+    <header className="sticky top-0 z-20 flex h-14 items-center justify-between bg-slate-800/75 px-6 backdrop-blur-md relative">
       <div className="flex items-center gap-3">
         <button
           onClick={onSidebarToggle}
@@ -27,10 +27,12 @@ export function Header({ level, onHome, onSidebarToggle }: HeaderProps) {
           onClick={onHome}
           className="flex items-center gap-2.5 transition-opacity hover:opacity-90"
         >
-          <span className="text-xl leading-none">🇩🇪</span>
+          <img src="/aaryaai-mark.svg" alt="AaryaAI" className="h-7 w-7 shrink-0" />
           <div className="flex flex-col leading-none">
-            <span className="text-sm font-bold tracking-tight text-white">Deutsch SkillUp</span>
-            <span className="hidden text-[9px] text-muted sm:block">Learn German A1 → C1</span>
+            <span className="text-sm font-bold tracking-tight text-white" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
+              Deutsch SkillUp
+            </span>
+            <span className="hidden text-[9px] text-muted sm:block">Learn German A1 → C1 · by AaryaAI</span>
           </div>
         </button>
       </div>
@@ -41,6 +43,7 @@ export function Header({ level, onHome, onSidebarToggle }: HeaderProps) {
         </span>
         <VersionTag version={`v${APP_VERSION}`} className="hidden sm:inline-flex" />
       </div>
+      <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent/30 to-transparent" />
     </header>
   );
 }
