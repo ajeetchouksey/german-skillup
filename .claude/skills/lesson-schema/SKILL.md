@@ -5,7 +5,7 @@ description: Canonical reference for german_skill's lesson content data model �
 
 # Lesson content schema
 
-`src/types.ts` is the single source of truth. Do not invent fields, and do not copy the shape of `src/data/lessons.a1.ts`'s older modules (m00–m13) — they predate this contract and are wrong (see "Known-bad example" below). `src/data/lessons.a2.ts` and A1's newest modules (`a1-m14`–`a1-m16`) are correct — model new content on those.
+`src/types.ts` is the single source of truth. Do not invent fields — see the "Known-bad example" below for the exact wrong shape `lessons.a1.ts`'s module `a1-m00` used to have (now fixed) and must never be reintroduced. `src/data/lessons.a2.ts` (and the rest of `lessons.a1.ts`) are the correct model.
 
 ## The contract
 

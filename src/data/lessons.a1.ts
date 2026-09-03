@@ -61,13 +61,14 @@ export const lessonsA1: LevelContent = {
             "Können Sie das buchstabieren? — Can you spell that?"
           ],
           "writingTask": {
-            "prompt": "Write 3 greetings for different times of day and spell your first name in German. Example: 'Guten Morgen! Mein Name ist Anna: A-N-N-A.'",
-            "wordMin": 20,
-            "wordMax": 40
+            "title": "Greetings and spelling your name",
+            "instruction": "Write 3 greetings for different times of day and spell your first name in German (20–40 words). Example: 'Guten Morgen! Mein Name ist Anna: A-N-N-A.'",
+            "timeMinutes": 8
           },
           "speakingTask": {
-            "prompt": "Practise saying the full German alphabet out loud (A–Z + Ä, Ö, Ü, ß). Then spell your full name. Time yourself: aim for under 30 seconds for the alphabet.",
-            "tips": [
+            "title": "Alphabet and name spelling",
+            "instruction": "Practise saying the full German alphabet out loud (A–Z + Ä, Ö, Ü, ß). Then spell your full name. Time yourself: aim for under 30 seconds for the alphabet.",
+            "checklist": [
               "Focus on the letters that differ most from English: J (yot), V (fow), W (vay), Z (tset)",
               "ß is called Eszett — it always sounds like 'ss'",
               "When in doubt, say 'Wie ein A mit Umlaut' (like an A with umlaut) for Ä"
@@ -89,27 +90,27 @@ export const lessonsA1: LevelContent = {
             {
               "q": "Which greeting do you use at 8 AM?",
               "options": ["Guten Abend", "Guten Morgen", "Auf Wiedersehen", "Tschüss"],
-              "answer": 1
+              "answer": "Guten Morgen"
             },
             {
               "q": "How is the German letter 'W' pronounced?",
               "options": ["like English W", "like English V", "like English B", "like English F"],
-              "answer": 1
+              "answer": "like English V"
             },
             {
               "q": "Which of these is the formal goodbye?",
               "options": ["Tschüss", "Hallo", "Auf Wiedersehen", "Bis bald"],
-              "answer": 2
+              "answer": "Auf Wiedersehen"
             },
             {
               "q": "What does 'buchstabieren' mean?",
               "options": ["to greet", "to write", "to spell", "to read"],
-              "answer": 2
+              "answer": "to spell"
             },
             {
               "q": "Which letters are called 'Umlaute'?",
               "options": ["A, E, I", "Ä, Ö, Ü", "B, D, G", "S, T, Z"],
-              "answer": 1
+              "answer": "Ä, Ö, Ü"
             }
           ]
         },
@@ -170,17 +171,18 @@ export const lessonsA1: LevelContent = {
             "Können Sie das wiederholen? — Can you repeat that?"
           ],
           "listeningTask": {
+            "title": "Numbers by ear",
             "instruction": "Ask a partner or text-to-speech tool to read 10 numbers between 1–100 at normal speed. Write each one as a digit. Typical exam pace: one number every 3–4 seconds.",
-            "tips": [
+            "checklist": [
               "German tens: -zig ending (zwanzig, dreißig, vierzig…) — note dreißig has -ßig not -zig",
               "Units come FIRST in compound numbers: einundzwanzig = ein + und + zwanzig",
               "Phone numbers are often read digit by digit or in pairs"
             ]
           },
           "writingTask": {
-            "prompt": "Write these numbers as words: 7, 15, 23, 48, 100. Then write: 'Ich bin [your age] Jahre alt. Meine Handynummer ist [make one up].'",
-            "wordMin": 25,
-            "wordMax": 50
+            "title": "Numbers, age, and phone number",
+            "instruction": "Write these numbers as words: 7, 15, 23, 48, 100. Then write: 'Ich bin [your age] Jahre alt. Meine Handynummer ist [make one up].' (25–50 words)",
+            "timeMinutes": 10
           },
           "realLifeTask": "Write out your phone number, your age, and the price of something you bought recently — all in German words. Read them aloud 3 times.",
           "examFocus": [
@@ -198,27 +200,27 @@ export const lessonsA1: LevelContent = {
             {
               "q": "How do you say 23 in German?",
               "options": ["zweidrei", "dreidzwanzig", "dreiundzwanzig", "zwanzigdrei"],
-              "answer": 2
+              "answer": "dreiundzwanzig"
             },
             {
               "q": "Which is correct: 'Ich bin ___ Jahre alt' for age 17?",
               "options": ["siebenzehn", "siebzehn", "siebenzig", "siebzehnig"],
-              "answer": 1
+              "answer": "siebzehn"
             },
             {
               "q": "What does 'dreißig' mean?",
               "options": ["thirteen", "thirty", "three", "three hundred"],
-              "answer": 1
+              "answer": "thirty"
             },
             {
               "q": "How do you say your mobile number starts with '07'?",
               "options": ["Null-sieben", "Siebn-null", "O-sieben", "Siebzig"],
-              "answer": 0
+              "answer": "Null-sieben"
             },
             {
               "q": "70 in German is:",
               "options": ["siebenzig", "siebzig", "siebenzehn", "siebzehn"],
-              "answer": 1
+              "answer": "siebzig"
             }
           ]
         }

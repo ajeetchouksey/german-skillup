@@ -27,7 +27,7 @@ If a brief asks for a reading passage instead of (or alongside) a module: write 
 
 ## Before writing — read the contract
 
-Read `lesson-schema` (the exact `types.ts` shapes, a clean example of each, the id convention) and `lesson-standard` (CEFR-level grammar/vocab progression, quiz-distractor craft, mission craft, exam-alignment). Do not copy the shape of `lessons.a1.ts`'s legacy modules (m00–m13) — they predate the current contract and are known-wrong; `lessons.a2.ts` is the correct model.
+Read `lesson-schema` (the exact `types.ts` shapes, a clean example of each, the id convention) and `lesson-standard` (CEFR-level grammar/vocab progression, quiz-distractor craft, mission craft, exam-alignment). `lessons.a1.ts` module `a1-m00` previously drifted from the current contract (fixed) — see `lesson-schema`'s known-bad example for the exact shape to never reintroduce.
 
 Non-negotiable, most-common-to-get-wrong items:
 - `PracticeTask` fields are exactly `title`, `instruction`, `modelAnswer?`, `examPart?`, `timeMinutes?`, `checklist?` — never `prompt`, `tips`, `wordMin`, `wordMax`.

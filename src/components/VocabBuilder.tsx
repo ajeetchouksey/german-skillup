@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from "react";
 import {
-  Search, BookOpen, CheckCircle2, SortAsc, X, ChevronDown, ChevronRight, RotateCcw, type LucideIcon,
+  Search, BookOpen, CheckCircle2, SortAsc, X, ChevronDown, ChevronRight, RotateCcw,
 } from "lucide-react";
 import { Badge, GlassCard, Button } from "@/components/ui";
 import { FlashcardDeck } from "@/components/FlashcardDeck";

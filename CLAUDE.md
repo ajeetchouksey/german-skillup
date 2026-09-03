@@ -21,7 +21,7 @@ npm run lint              # eslint .
 
 There is no test runner installed in this repo (no vitest/playwright) — `tsc -b --noEmit` and a manual click-through (e.g. via the `run` skill) are the correctness checks available today. `tsc -b --noEmit` covers three project references — `tsconfig.app.json` (the frontend), `tsconfig.node.json` (Vite config), and `tsconfig.worker.json` (`workers/`, the auth Worker) — all three from one command.
 
-**Known pre-existing `tsc` errors, not caused by unrelated work**: `src/data/lessons.a1.ts`'s legacy modules (m00–m13) don't conform to `src/types.ts` — see "Content model" below; `src/components/VocabBuilder.tsx` has one unrelated unused-import warning. Don't assume a fresh `tsc -b --noEmit` failure is something you broke — diff against this known baseline first. (`src/lib/useSpeechRecognition.ts`'s former 5 errors — missing `SpeechRecognition` DOM lib types — are fixed; the types live in `src/types/speech.d.ts`, a local ambient declaration since TS's standard DOM lib doesn't ship the Web Speech API.)
+`tsc -b --noEmit` is clean — 0 errors. (It wasn't, for most of this project's history: `lessons.a1.ts`'s module `a1-m00` predated the `PracticeTask`/`QuizQuestion` contract and didn't conform to it, and `VocabBuilder.tsx` had one unused import — both fixed. This is exactly why `npm run build`, which runs `tsc -b` before `vite build`, had never once succeeded until that fix landed — don't assume a schema-shaped bug like that is someone else's problem to defer; it blocks every deploy.)
 
 ## Architecture
 
@@ -36,7 +36,7 @@ Content is authored as plain typed objects (`src/types.ts` is the single source 
 - `PASSAGES` (`src/data/passages.ts`) — a registry, `Record<CEFRLevel, ReadingPassage[]>` (each level defaults to `[]`, not `null` — a level can have zero or many passages), mirroring `levels.ts`'s pattern. Per-level data lives in `src/data/passages.<level>.ts`. Powers `ReadAloudPractice.tsx`'s sentence-by-sentence read-aloud practice, surfaced as the "Read Aloud" tab in `AgentPanel`.
 - `src/lib/studyPlan.ts` is pure derived logic over `LevelContent`/`ProgressState` (study-plan generation, vocab aggregation, module-readiness) — it has no static content of its own and needs no authoring.
 
-**Known content bug**: `lessons.a1.ts`'s older modules (m00–m13, ids like `"a1-07"`) use nonexistent `PracticeTask` fields (`prompt`, `tips`, `wordMin`, `wordMax`) instead of the real `title`/`instruction`/`modelAnswer?`/`examPart?`/`timeMinutes?`/`checklist?`, and numeric `quiz[].answer` instead of the required string. `lessons.a2.ts` and A1's three newest modules (`a1-m14`–`a1-m16`, ids like `"a1-m14-l01"`) get this right — that's the target shape, not the legacy one. Not yet fixed; `tsc -b --noEmit` will surface it.
+All of `lessons.a1.ts` now conforms to the `Lesson`/`PracticeTask`/`QuizQuestion` contract (module `a1-m00`'s two lessons were the last holdouts — nonexistent `PracticeTask` fields `prompt`/`tips`/`wordMin`/`wordMax` instead of the real `title`/`instruction`/`modelAnswer?`/`examPart?`/`timeMinutes?`/`checklist?`, and numeric `quiz[].answer` instead of the required string — fixed to match `lessons.a2.ts`'s already-correct shape). If a future edit to `lessons.a1.ts` reintroduces this pattern, `tsc -b --noEmit` (and `lesson-validator`) will catch it immediately.
 
 ### Content authoring — agent-driven
 
