@@ -1,9 +1,11 @@
 # 🇩🇪 Deutsch SkillUp
 
-A free, no-login German learning app — same platform philosophy and UI language
-as [ajch_platform](https://github.com/ajeetchouksey/ajch_platform) / AaryaAI
-SkillUp: React + TypeScript + Vite, dark glass-card UI, GitHub Pages hosting,
-versioned releases with a changelog.
+A free German learning app, no account required to start — same platform
+philosophy and UI language as [ajch_platform](https://github.com/ajeetchouksey/ajch_platform)
+/ AaryaAI SkillUp: React + TypeScript + Vite, dark glass-card UI, GitHub Pages
+hosting, versioned releases with a changelog. Optional Google sign-in (a
+dedicated Cloudflare Worker, see `workers/`) adds cross-device progress sync
+on top — it's never a wall in front of the content.
 
 > **Roadmap:** A1 → A2 → B1 → B2 → C1. Currently ships with **A1** content.
 
@@ -25,7 +27,7 @@ to stop the server. See "Run Locally" below for full details and prerequisites.
 | Framework  | React 18 + TypeScript                     |
 | Build tool | Vite                                      |
 | Styling    | Tailwind CSS (dark theme, glass-card panels) |
-| State      | Local React state + `localStorage` (no backend, no login) |
+| State      | Local React state + `localStorage` (source of truth); optional Google login for cross-device sync via a dedicated Worker (`workers/auth.ts`) |
 | Hosting    | GitHub Pages via GitHub Actions           |
 | Versioning | Semantic Versioning + `CHANGELOG.md`      |
 
@@ -183,9 +185,11 @@ On every release:
 
 ## Notes
 
-- No user accounts, no server, no database — progress lives in the visitor's
-  own browser (`localStorage`). Private, but device-specific until an
-  optional login/sync is added in a later phase.
+- No account required — progress lives in the visitor's own browser
+  (`localStorage`) by default. Optional Google sign-in (`workers/auth.ts`, a
+  dedicated Cloudflare Worker + D1 database) adds cross-device sync on top;
+  signing out or never signing in doesn't lose anything, since local storage
+  stays the source of truth either way.
 - All lesson content is fully typed (`src/types.ts`) and authored in plain
   TypeScript objects — no JSON parsing, full IDE autocomplete/type-checking
   when adding new modules or lessons.

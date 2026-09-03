@@ -1,0 +1,69 @@
+name                = "deutsch-skillup-auth"
+main                = "workers/auth.ts"
+compatibility_date  = "2026-06-05"
+workers_dev         = true
+
+# ── Custom domain ─────────────────────────────────────────────────────────────
+# api.hallo.aaryaai.dev, not a *.workers.dev URL — the latter leaks the
+# Cloudflare account name and looks untrustworthy on a Google OAuth consent
+# screen. aaryaai.dev is already a Cloudflare-managed zone on this account
+# (same one hallo.aaryaai.dev's CNAME to GitHub Pages lives in), so
+# custom_domain = true auto-provisions the DNS record + TLS cert for this
+# api.hallo subdomain on `wrangler deploy` — no separate manual DNS step.
+[[routes]]
+pattern = "api.hallo.aaryaai.dev"
+custom_domain = true
+
+# ── KV namespace — per-user rate limiting on /profile/save ───────────────────
+# Named DEUTSCH_SKILLUP_RATE_LIMITER (not RATE_LIMITER) deliberately — this
+# Cloudflare account already has ajch_platform's own KV namespace literally
+# titled "RATE_LIMITER" (id 11f07ef9b0c5432bb9a232390d3ec672); reusing it would
+# share rate-limit counters across two unrelated apps.
+[[kv_namespaces]]
+binding = "RATE_LIMITER"
+id      = "292bd8733b4647c488e2ecc6479f983b"
+
+# ── D1 database — cross-device progress sync for Google logins ───────────────
+# Schema applied via: wrangler d1 execute deutsch-skillup-progress --remote --file=workers/schema.sql
+[[d1_databases]]
+binding       = "DB"
+database_name = "deutsch-skillup-progress"
+database_id   = "387af76a-8482-48fe-ac8d-3ab4ef0fa7ff"
+
+# ── Secrets — set via CLI, never commit values ────────────────────────────────
+# Status: KV namespace, D1 database, schema, and SESSION_SIGNING_KEY are all
+# live. Login itself is NOT live yet — the two Google secrets below are still
+# unset, so the OAuth callback fails closed with #auth_error=server_misconfigured
+# (see workers/auth.ts's own check) rather than doing anything unsafe.
+#
+#   wrangler secret put GOOGLE_CLIENT_ID          [ ] not yet set
+#     → the SAME Google OAuth Client ID ajch_platform's workers/subscribe.ts
+#       already uses (per project decision: one Google Cloud OAuth app, two
+#       registered redirect URIs — not a second app). Before this works, add
+#       https://api.hallo.aaryaai.dev/oauth/google/callback as an ADDITIONAL
+#       authorized redirect URI on that existing client in Google Cloud
+#       Console → APIs & Services → Credentials → (the client) — this is a
+#       manual step, no API/CLI can do it.
+#
+#   wrangler secret put GOOGLE_CLIENT_SECRET      [ ] not yet set
+#     → the matching Google OAuth client secret (same value as ajch_platform's,
+#       NEVER commit it).
+#
+#   wrangler secret put SESSION_SIGNING_KEY       [x] set 2026-09-03
+#     → a random 32-byte hex string, deliberately NOT shared with
+#       ajch_platform's own SESSION_SIGNING_KEY, so a token minted by one
+#       Worker can never be replayed against the other.
+#
+# ── Deploy ────────────────────────────────────────────────────────────────────
+# Worker is deployed: https://api.hallo.aaryaai.dev (custom domain, auto-TLS)
+# and https://deutsch-skillup-auth.<account>.workers.dev (workers.dev preview,
+# harmless — every route still enforces its own CORS/origin check regardless
+# of hostname). Re-run `wrangler deploy` after any workers/auth.ts change;
+# `wrangler secret put` takes effect immediately, no redeploy needed.
+#
+# Once the two Google secrets above are set, also set in the frontend build
+# env (GitHub Actions repo secrets/vars, consumed by .github/workflows/deploy.yml):
+#   VITE_AUTH_WORKER_URL=https://api.hallo.aaryaai.dev
+#   VITE_GOOGLE_CLIENT_ID=<the same client id as GOOGLE_CLIENT_ID above>
+# — client IDs are public by design (not secrets), but the matching client
+# *secret* only ever belongs server-side, in this file's GOOGLE_CLIENT_SECRET.

@@ -32,6 +32,15 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          # Both public by design (a Worker URL and an OAuth client id, not
+          # secrets — the matching client *secret* only ever lives server-side
+          # as a `wrangler secret`, never here). Unset repo variables build to
+          # empty strings, which keeps login correctly disabled (isAuthConfigured()
+          # stays false, LoginWidget renders nothing) until both are set in
+          # Settings → Secrets and variables → Actions → Variables.
+          VITE_AUTH_WORKER_URL: ${{ vars.VITE_AUTH_WORKER_URL }}
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

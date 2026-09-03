@@ -2,6 +2,7 @@ import { Menu } from "lucide-react";
 import { APP_VERSION } from "@/lib/version";
 import type { CEFRLevel } from "@/types";
 import { VersionTag } from "./ui";
+import { LoginWidget } from "./LoginWidget";
 
 export type AppView = "home" | "lesson" | "plan" | "vocab" | "agents";
 
@@ -41,6 +42,7 @@ export function Header({ level, onHome, onSidebarToggle }: HeaderProps) {
         <span className="rounded-full border border-violet-500/30 bg-violet-500/5 px-2 py-0.5 text-[10px] font-medium text-violet-300">
           Level {level}
         </span>
+        <LoginWidget />
         <VersionTag version={`v${APP_VERSION}`} className="hidden sm:inline-flex" />
       </div>
       <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-accent/30 to-transparent" />

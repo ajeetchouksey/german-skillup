@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Header, type AppView } from "@/components/Header";
 import { NavSidebar } from "@/components/NavSidebar";
 import { DashboardHome } from "@/components/DashboardHome";
+import { Landing } from "@/components/Landing";
 import { LessonView } from "@/components/LessonView";
 import { StudyPlanView } from "@/components/StudyPlanView";
 import { VocabBuilder } from "@/components/VocabBuilder";
@@ -11,21 +12,68 @@ import { AgentPanel } from "@/components/agents/AgentPanel";
 import { LEVELS, AVAILABLE_LEVELS } from "@/data/levels";
 import { useProgress } from "@/lib/useProgress";
 import { getCompletionPct } from "@/lib/progress";
+import { useAuth } from "@/lib/auth";
+import { loadCloudProgress, mergeProgress, saveCloudProgress } from "@/lib/progressSync";
 import type { CEFRLevel, Lesson, Module } from "@/types";
 
+const ENTERED_KEY = "deutsch_skillup_entered_v1";
+
 export default function App() {
+  const [entered, setEntered] = useState(() => localStorage.getItem(ENTERED_KEY) === "1");
   const [level, setLevel] = useState<CEFRLevel>(AVAILABLE_LEVELS[0] ?? "A1");
   const [selection, setSelection] = useState<{ mod: Module; lesson: Lesson } | null>(null);
   const [view, setView] = useState<AppView>("home");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  // Tracks which token's already been merged — not a boolean. A boolean would
+  // stay true across logout (nothing resets it), so a second login in the
+  // same session would skip the merge and silently overwrite cloud data with
+  // unmerged local state. Each login mints a fresh token, so comparing
+  // against the actual token value re-triggers a merge on every real login
+  // (same account or different) while still running at most once per token.
+  const [syncedForToken, setSyncedForToken] = useState<string | null>(null);
 
-  const { progress, completeLesson, submitQuiz, reset } = useProgress();
+  const { progress, completeLesson, submitQuiz, reset, applyProgress } = useProgress();
+  const { token } = useAuth();
   const toastTimer = useRef<number | undefined>(undefined);
+  // Mirrors `progress` for the async sync effect below, so a merge that
+  // resolves after the user completes a lesson/quiz mid-fetch reads the
+  // latest local state instead of the stale snapshot captured when the
+  // effect fired (the promise can outlive that render).
+  const progressRef = useRef(progress);
+  progressRef.current = progress;
+
+  // On login: pull cloud progress once and merge with whatever's local. The
+  // "push to cloud" effect below picks up the merged (or unchanged, if there
+  // was no cloud copy yet) result on the next render once syncedForToken matches.
+  useEffect(() => {
+    if (!token || syncedForToken === token) return;
+    loadCloudProgress(token).then((cloud) => {
+      if (cloud) applyProgress(mergeProgress(progressRef.current, cloud));
+      setSyncedForToken(token);
+    });
+  }, [token, syncedForToken, applyProgress]);
+
+  // After the initial sync, keep pushing local changes to the cloud.
+  useEffect(() => {
+    if (!token || syncedForToken !== token) return;
+    saveCloudProgress(token, progress);
+  }, [token, syncedForToken, progress]);
 
   const data = LEVELS[level];
 
   const completionPct = useMemo(() => (data ? getCompletionPct(data, progress) : 0), [data, progress]);
+
+  if (!entered) {
+    return (
+      <Landing
+        onStart={() => {
+          localStorage.setItem(ENTERED_KEY, "1");
+          setEntered(true);
+        }}
+      />
+    );
+  }
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -54,6 +102,7 @@ export default function App() {
   }
 
   const activeView: AppView = view === "lesson" ? "lesson" : view;
+  const pageKey = `${view}-${selection?.lesson.id ?? ""}`;
 
   const handleReset = () => {
     if (confirm("Reset all your local progress? This cannot be undone.")) {
@@ -64,6 +113,13 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen flex-col">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded-lg focus:bg-accent focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
+      >
+        Skip to content
+      </a>
+      <div key={`np-${pageKey}`} className="nav-progress" aria-hidden="true" />
       <Header
         level={level}
         onHome={goHome}
@@ -98,35 +154,37 @@ export default function App() {
           onSelectLesson={(mod, lesson) => { setSelection({ mod, lesson }); setView("lesson"); }}
         />
 
-        <main className="flex-1 p-5 sm:p-9">
-          <div className="mx-auto max-w-[880px]">
-            {view === "agents" ? (
-              <AgentPanel />
-            ) : view === "plan" ? (
-              <StudyPlanView data={data} onBack={goHome} />
-            ) : view === "vocab" ? (
-              <VocabBuilder data={data} onBack={goHome} />
-            ) : view === "lesson" && selection ? (
-              <LessonView
-                data={data}
-                mod={selection.mod}
-                lesson={selection.lesson}
-                progress={progress}
-                onComplete={(lessonId) => completeLesson(lessonId)}
-                onQuizComplete={(lessonId, correct, total) => submitQuiz(lessonId, correct, total)}
-                onNavigate={(mod, lesson) => { setSelection({ mod, lesson }); setView("lesson"); }}
-                onToast={showToast}
-              />
-            ) : (
-              <DashboardHome
-                data={data}
-                progress={progress}
-                completionPct={completionPct}
-                onGoToPlan={() => setView("plan")}
-                onGoToVocab={() => setView("vocab")}
-                onOpenLesson={openLesson}
-              />
-            )}
+        <main id="main" className="flex-1 p-4 lg:p-8">
+          <div className="mx-auto max-w-5xl">
+            <div key={pageKey} className="animate-[fadeIn_0.38s_cubic-bezier(0.22,1,0.36,1)_both]">
+              {view === "agents" ? (
+                <AgentPanel level={level} />
+              ) : view === "plan" ? (
+                <StudyPlanView data={data} onBack={goHome} />
+              ) : view === "vocab" ? (
+                <VocabBuilder data={data} onBack={goHome} />
+              ) : view === "lesson" && selection ? (
+                <LessonView
+                  data={data}
+                  mod={selection.mod}
+                  lesson={selection.lesson}
+                  progress={progress}
+                  onComplete={(lessonId) => completeLesson(lessonId)}
+                  onQuizComplete={(lessonId, correct, total) => submitQuiz(lessonId, correct, total)}
+                  onNavigate={(mod, lesson) => { setSelection({ mod, lesson }); setView("lesson"); }}
+                  onToast={showToast}
+                />
+              ) : (
+                <DashboardHome
+                  data={data}
+                  progress={progress}
+                  completionPct={completionPct}
+                  onGoToPlan={() => setView("plan")}
+                  onGoToVocab={() => setView("vocab")}
+                  onOpenLesson={openLesson}
+                />
+              )}
+            </div>
           </div>
         </main>
       </div>

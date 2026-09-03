@@ -4,6 +4,16 @@ dist-ssr
 *.local
 *.tsbuildinfo
 
+# Vite env files — .env.example is the committed template, real values aren't
+.env
+.env.*
+!.env.example
+
+# Cloudflare Workers — local dev state + secrets, never committed
+.wrangler
+.dev.vars
+.dev.vars.*
+
 # Editor
 .vscode/*
 !.vscode/extensions.json

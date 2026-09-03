@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ProgressState } from "@/types";
-import { loadProgress, markLessonComplete, recordQuizScore, resetProgress, updateStreak } from "./progress";
+import { loadProgress, markLessonComplete, recordQuizScore, resetProgress, saveProgress, updateStreak } from "./progress";
 
 // React hook wrapping the localStorage-backed progress engine.
 // No login/account — progress is per-browser, by design (Phase 1).
@@ -27,5 +27,12 @@ export function useProgress() {
     setProgress(updateStreak(loadProgress()));
   }, []);
 
-  return { progress, completeLesson, submitQuiz, reset };
+  // Applies an externally-computed ProgressState (e.g. the merged result of
+  // local + cloud progress after login) as this device's new local state.
+  const applyProgress = useCallback((next: ProgressState) => {
+    saveProgress(next);
+    setProgress(next);
+  }, []);
+
+  return { progress, completeLesson, submitQuiz, reset, applyProgress };
 }
