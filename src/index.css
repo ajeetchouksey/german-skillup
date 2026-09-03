@@ -1,13 +1,14 @@
 @import "tailwindcss";
 
-/* ─── Design tokens: AaryaAI brand base (violet/blue), shared with ajch_platform ─ */
+/* ─── Design tokens: canonical AaryaAI brand system (brand/BRAND.md) ─── */
 @theme {
   --color-bg:          #0e1a2d;
   --color-bg-alt:      #0d1829;
   --color-card:        #111c2e;
   --color-border:      #1e2d42;
-  --color-accent:      #7c3aed;
-  --color-accent-blue: #2f6fed;
+  --color-accent:      #5b4bd6; /* --brand-indigo */
+  --color-accent-deep: #4c3fbd; /* --brand-indigo-deep — hover/pressed shade */
+  --color-lilac:       #a99bff; /* --brand-lilac — accent type on dark grounds */
   --color-error:       #dc2626;
   --color-success:     #2fbf71;
   --color-muted:       #9aa3b2;
@@ -19,17 +20,21 @@
   html { scroll-behavior: smooth; }
   body {
     color: #f1f5f9; /* slate-100 */
-    font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'Barlow', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
     -webkit-font-smoothing: antialiased;
-    /* 5-layer nebula — violet/blue Aarya brand base */
+    /* 5-layer nebula — single-hue indigo/lilac, per brand.md "one accent only" */
     background:
-      radial-gradient(ellipse 100% 60% at 50% -5%,  rgba(139,92,246,0.14) 0%, transparent 65%),
-      radial-gradient(ellipse 70%  50% at 85% 85%,  rgba(59,130,246,0.10) 0%, transparent 55%),
-      radial-gradient(ellipse 50%  40% at 10% 60%,  rgba(99,102,241,0.06) 0%, transparent 50%),
-      radial-gradient(ellipse 55%  45% at 100% 45%, rgba(124,58,237,0.07) 0%, transparent 60%),
-      radial-gradient(ellipse 45%  35% at 0%   95%, rgba(109,40,217,0.05) 0%, transparent 55%),
+      radial-gradient(ellipse 100% 60% at 50% -5%,  rgba(91,75,214,0.16) 0%, transparent 65%),
+      radial-gradient(ellipse 70%  50% at 85% 85%,  rgba(169,155,255,0.09) 0%, transparent 55%),
+      radial-gradient(ellipse 50%  40% at 10% 60%,  rgba(91,75,214,0.07) 0%, transparent 50%),
+      radial-gradient(ellipse 55%  45% at 100% 45%, rgba(169,155,255,0.06) 0%, transparent 60%),
+      radial-gradient(ellipse 45%  35% at 0%   95%, rgba(91,75,214,0.05) 0%, transparent 55%),
       #0e1a2d;
     background-attachment: fixed;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Barlow Condensed', ui-sans-serif, system-ui, sans-serif;
+    letter-spacing: -0.01em;
   }
 }
 
@@ -41,6 +46,26 @@
 @keyframes gradientShimmer {
   0%, 100% { background-position: 0%   50%; }
   50%       { background-position: 100% 50%; }
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes navProgress {
+  0%   { width: 0%;  opacity: 1; }
+  60%  { width: 80%; opacity: 1; }
+  100% { width: 100%; opacity: 0; }
+}
+.nav-progress {
+  position: fixed;
+  top: 0; left: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #5b4bd6, #a99bff, #c9c0ff);
+  animation: navProgress 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  z-index: 9999;
+  pointer-events: none;
+  border-radius: 0 2px 2px 0;
+  box-shadow: 0 0 8px rgba(91, 75, 214, 0.6);
 }
 @keyframes glow-pulse {
   0%, 100% { opacity: 0.4; }
@@ -96,16 +121,16 @@
   content: '';
   position: absolute; top: 0; left: 0; right: 0;
   height: 2px;
-  background: var(--accent-color, linear-gradient(90deg, #7c3aed, #a78bfa));
+  background: var(--accent-color, linear-gradient(90deg, #5b4bd6, #a99bff));
   border-radius: 14px 14px 0 0;
   opacity: 0.75;
   pointer-events: none;
   z-index: 1;
 }
 
-/* Animated heading gradient — Aarya violet/purple palette */
+/* Animated heading gradient — AaryaAI indigo/lilac palette */
 .heading-gradient {
-  background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 40%, #c4b5fd 70%, #7c3aed 100%);
+  background: linear-gradient(135deg, #5b4bd6 0%, #a99bff 40%, #c9c0ff 70%, #5b4bd6 100%);
   background-size: 200% 200%;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -116,19 +141,21 @@
 /* Eyebrow label above page h1 */
 .page-eyebrow {
   display: inline-flex; align-items: center; gap: 0.375rem;
+  font-family: 'Barlow Condensed', ui-sans-serif, system-ui, sans-serif;
   font-size: 0.6875rem; font-weight: 600;
   text-transform: uppercase; letter-spacing: 0.12em;
-  color: #a78bfa; margin-bottom: 0.35rem;
+  color: #a99bff; margin-bottom: 0.35rem;
 }
 .page-eyebrow::before {
   content: ''; width: 5px; height: 5px;
-  border-radius: 50%; background: #7c3aed; flex-shrink: 0;
+  border-radius: 50%; background: #5b4bd6; flex-shrink: 0;
 }
 
-/* Section h2 with violet left-accent */
+/* Section h2 with indigo left-accent */
 .section-heading {
+  font-family: 'Barlow Condensed', ui-sans-serif, system-ui, sans-serif;
   font-size: 0.9375rem; font-weight: 600; color: white;
-  border-left: 2px solid #7c3aed; padding-left: 0.75rem;
+  border-left: 2px solid #5b4bd6; padding-left: 0.75rem;
   letter-spacing: -0.01em;
 }
 
@@ -150,11 +177,11 @@
   transition: border-color 0.15s;
   cursor: pointer;
 }
-.btn:hover { border-color: var(--color-accent-blue); }
+.btn:hover { border-color: var(--color-lilac); }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .btn-primary {
   border: none; color: #fff;
-  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  background: linear-gradient(135deg, #5b4bd6, #4c3fbd);
 }
 .badge-level {
   display: inline-flex; align-items: center; gap: 0.375rem;
@@ -164,6 +191,7 @@
   color: var(--color-accent); font-weight: 600; letter-spacing: 0.05em;
 }
 .section-label {
+  font-family: 'Barlow Condensed', ui-sans-serif, system-ui, sans-serif;
   font-size: 0.7rem; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.1em;
   color: var(--color-accent); margin-top: 1.5rem; margin-bottom: 0.5rem;
