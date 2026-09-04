@@ -30,6 +30,60 @@ export function aiErrorMessage(reason: Extract<AiFeedbackResult, { ok: false }>[
   }
 }
 
+export interface FeedbackSegment {
+  type: "text" | "wrong" | "right";
+  content: string;
+}
+
+/** Splits AI feedback text on the [wrong]...[/wrong] / [right]...[/right] markup
+ * the Worker's system prompts ask the model to use around the specific German
+ * words being compared, so the UI can color-code them. Untagged text (including
+ * a reply that ignores the markup instruction) comes back as a single "text"
+ * segment — callers must render that plainly, never assume tags are present. */
+export function parseAiFeedbackMarkup(text: string): FeedbackSegment[] {
+  const segments: FeedbackSegment[] = [];
+  const re = /\[wrong\](.*?)\[\/wrong\]|\[right\](.*?)\[\/right\]/gs;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(text)) !== null) {
+    if (match.index > lastIndex) segments.push({ type: "text", content: text.slice(lastIndex, match.index) });
+    if (match[1] !== undefined) segments.push({ type: "wrong", content: match[1] });
+    else if (match[2] !== undefined) segments.push({ type: "right", content: match[2] });
+    lastIndex = re.lastIndex;
+  }
+  if (lastIndex < text.length) segments.push({ type: "text", content: text.slice(lastIndex) });
+  return segments;
+}
+
+export interface FeatureQuota {
+  used: number;
+  limit: number;
+  remaining: number;
+}
+
+export interface AiQuota {
+  writing: FeatureQuota;
+  reading: FeatureQuota;
+}
+
+const AUTH_WORKER_URL = (import.meta.env.VITE_AUTH_WORKER_URL as string | undefined) || "";
+
+/** Today's remaining writing/reading AI-feedback checks for this learner (or
+ * null if unavailable/misconfigured — callers should just omit the quota UI
+ * rather than block on it, same as every other AI feature here). A read-only
+ * peek: never throws, never counts as a check itself. */
+export async function getAiQuota(token?: string | null): Promise<AiQuota | null> {
+  if (!AUTH_WORKER_URL) return null;
+  try {
+    const res = await fetch(`${AUTH_WORKER_URL}/ai/quota`, { headers: authHeaders(token) });
+    if (!res.ok) return null;
+    const data = (await res.json()) as Partial<AiQuota>;
+    return data.writing && data.reading ? (data as AiQuota) : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function parseAiFeedbackResponse(res: Response): Promise<AiFeedbackResult> {
   if (res.status === 429) {
     const data = (await res.json().catch(() => null)) as { error?: string } | null;

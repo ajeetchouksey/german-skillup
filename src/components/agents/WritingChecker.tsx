@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, Flag, Info, Loader2, RotateCcw, Sparkles, Wand2 } from "lucide-react";
 import { Badge, Button, GlassCard, SectionHeader } from "@/components/ui";
+import { AiFeedbackText } from "@/components/AiFeedbackText";
 import { WritingPad } from "@/components/WritingPad";
 import { useAuth } from "@/lib/auth";
-import { aiErrorMessage } from "@/lib/aiFeedback";
+import { aiErrorMessage, getAiQuota, type FeatureQuota } from "@/lib/aiFeedback";
 import { checkWritingWithAI, reportWritingFeedback, type WritingCheckResult } from "@/lib/writingCheck";
 
 export interface Feedback {
@@ -102,6 +103,11 @@ export function WritingChecker() {
   const [aiError, setAiError] = useState<Extract<WritingCheckResult, { ok: false }>["reason"] | undefined>();
   const [reported, setReported] = useState(false);
   const [reporting, setReporting] = useState(false);
+  const [quota, setQuota] = useState<FeatureQuota | null>(null);
+
+  useEffect(() => {
+    getAiQuota(token).then((q) => setQuota(q?.writing ?? null));
+  }, [token]);
 
   const run = () => setFeedback(analyze(text));
   const clear = () => {
@@ -119,8 +125,13 @@ export function WritingChecker() {
     setReported(false);
     const result = await checkWritingWithAI(text, token);
     setAiLoading(false);
-    if (result.ok) setAiFeedback(result.feedback);
-    else setAiError(result.reason);
+    if (result.ok) {
+      setAiFeedback(result.feedback);
+      setQuota((q) => (q ? { ...q, used: q.used + 1, remaining: Math.max(0, q.remaining - 1) } : q));
+    } else {
+      setAiError(result.reason);
+      if (result.reason === "daily_limit_reached") setQuota((q) => (q ? { ...q, used: q.limit, remaining: 0 } : q));
+    }
   };
 
   const report = async () => {
@@ -163,7 +174,13 @@ export function WritingChecker() {
         />
         <div className="mt-3 flex items-center justify-between gap-2">
           <span className="text-xs text-muted">{text.trim().split(/\s+/).filter(Boolean).length} words</span>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
+            {quota && (
+              <Badge
+                label={`${quota.remaining}/${quota.limit} AI checks left today`}
+                variant={quota.remaining === 0 ? "red" : "slate"}
+              />
+            )}
             <Button variant="ghost" size="sm" icon={RotateCcw} onClick={clear} disabled={!text}>Clear</Button>
             <Button variant="outline" size="sm" icon={Wand2} onClick={run} disabled={!text.trim()}>Analyse</Button>
             <Button
@@ -171,7 +188,7 @@ export function WritingChecker() {
               size="sm"
               icon={aiLoading ? Loader2 : Sparkles}
               onClick={getAiFeedback}
-              disabled={!text.trim() || aiLoading}
+              disabled={!text.trim() || aiLoading || quota?.remaining === 0}
             >
               {aiLoading ? "Thinking…" : "Get AI Feedback"}
             </Button>
@@ -218,7 +235,7 @@ export function WritingChecker() {
             <Sparkles size={13} className="text-lilac shrink-0" />
             <p className="text-xs font-bold uppercase tracking-widest text-lilac">AI Feedback</p>
           </div>
-          <p className="text-sm text-slate-200 whitespace-pre-wrap">{aiFeedback}</p>
+          <AiFeedbackText text={aiFeedback} />
           <div className="pt-2 border-t border-border">
             {reported ? (
               <span className="text-xs text-muted">Thanks — this has been flagged for review.</span>

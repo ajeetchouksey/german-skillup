@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle, BookOpen, CheckCircle2, Flag, Info, Loader2, Mic, MicOff, PenLine, Sparkles, Turtle, Volume2, Wand2 } from "lucide-react";
 import type { ReadingPassage } from "@/types";
 import { useSpeech } from "@/lib/useSpeech";
 import { useSpeechRecognition, type RecognitionResult } from "@/lib/useSpeechRecognition";
 import { useAuth } from "@/lib/auth";
-import { aiErrorMessage } from "@/lib/aiFeedback";
+import { aiErrorMessage, getAiQuota, type FeatureQuota } from "@/lib/aiFeedback";
 import { checkReadingWithAI, reportReadingFeedback, type ReadingCheckItem, type ReadingCheckResult } from "@/lib/readingCheck";
 import { analyze, type Feedback } from "./agents/WritingChecker";
+import { AiFeedbackText } from "./AiFeedbackText";
 import { WritingPad } from "./WritingPad";
 import { Badge, Button, GlassCard, SectionHeader } from "./ui";
 
@@ -38,6 +39,11 @@ export function ReadAloudPractice({ passage }: ReadAloudPracticeProps) {
   const [aiError, setAiError] = useState<Extract<ReadingCheckResult, { ok: false }>["reason"] | undefined>();
   const [reported, setReported] = useState(false);
   const [reporting, setReporting] = useState(false);
+  const [quota, setQuota] = useState<FeatureQuota | null>(null);
+
+  useEffect(() => {
+    getAiQuota(token).then((q) => setQuota(q?.reading ?? null));
+  }, [token]);
 
   const handleStart = () => {
     setResults({});
@@ -65,8 +71,13 @@ export function ReadAloudPractice({ passage }: ReadAloudPracticeProps) {
     setReported(false);
     const result = await checkReadingWithAI(readingItems(), token);
     setAiLoading(false);
-    if (result.ok) setAiFeedback(result.feedback);
-    else setAiError(result.reason);
+    if (result.ok) {
+      setAiFeedback(result.feedback);
+      setQuota((q) => (q ? { ...q, used: q.used + 1, remaining: Math.max(0, q.remaining - 1) } : q));
+    } else {
+      setAiError(result.reason);
+      if (result.reason === "daily_limit_reached") setQuota((q) => (q ? { ...q, used: q.limit, remaining: 0 } : q));
+    }
   };
 
   const report = async () => {
@@ -149,13 +160,19 @@ export function ReadAloudPractice({ passage }: ReadAloudPracticeProps) {
             </Button>
           )}
           {aggregateScore !== null && <Badge label={`Passage score: ${aggregateScore}%`} variant="violet" />}
+          {isComplete && quota && (
+            <Badge
+              label={`${quota.remaining}/${quota.limit} AI checks left today`}
+              variant={quota.remaining === 0 ? "red" : "slate"}
+            />
+          )}
           {isComplete && (
             <Button
               variant="outline"
               size="sm"
               icon={aiLoading ? Loader2 : Sparkles}
               onClick={getAiFeedback}
-              disabled={aiLoading}
+              disabled={aiLoading || quota?.remaining === 0}
             >
               {aiLoading ? "Thinking…" : "Get AI Feedback"}
             </Button>
@@ -178,7 +195,7 @@ export function ReadAloudPractice({ passage }: ReadAloudPracticeProps) {
             <Sparkles size={13} className="text-lilac shrink-0" />
             <p className="text-xs font-bold uppercase tracking-widest text-lilac">AI Feedback</p>
           </div>
-          <p className="text-sm text-slate-200 whitespace-pre-wrap">{aiFeedback}</p>
+          <AiFeedbackText text={aiFeedback} />
           <div className="pt-2 border-t border-border">
             {reported ? (
               <span className="text-xs text-muted">Thanks — this has been flagged for review.</span>

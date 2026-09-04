@@ -138,6 +138,14 @@ async function checkWindowedRateLimit(
   return true;
 }
 
+/** Read-only count for the same windowed-bucket scheme above — never increments,
+ * so /ai/quota can report usage without itself consuming a slot. */
+async function peekWindowedCount(env: Env, key: string, windowMs: number): Promise<number> {
+  const bucket = Math.floor(Date.now() / windowMs);
+  const current = await env.RATE_LIMITER.get(`${key}:${bucket}`);
+  return parseInt(current ?? "0", 10);
+}
+
 // ── Google OAuth callback ─────────────────────────────────────────────────────
 
 const OAUTH_STATE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -279,6 +287,10 @@ async function handleProfileSave(request: Request, env: Env, origin: string): Pr
 // tail`/Workers Logs surfaces in real time, and Cloudflare's own dashboard
 // already tracks Workers AI neuron consumption per model.
 
+// Per-user daily cap for each of /writing/check and /reading/check (separate
+// pools — see identityOrCapKey) — also the number /ai/quota reports against.
+const DAILY_FEEDBACK_LIMIT = 15;
+
 const MAX_WRITING_TEXT_LENGTH = 2000;
 const WRITING_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
 const MODERATION_MODEL = "@cf/meta/llama-guard-3-8b";
@@ -286,8 +298,12 @@ const WRITING_DECLINE_MESSAGE =
   "This doesn't look like a German-writing sample I can help with — please share a piece of your own German writing and I'll give feedback on it.";
 const WRITING_SYSTEM_PROMPT = `You are a friendly, encouraging German-writing coach for A1-C1 learners on Deutsch SkillUp.
 Given a short piece of the learner's German writing:
+- Write your entire reply in English — the learner is learning German, not fluent in it yet, so an all-German
+  explanation defeats the point. Quote the German words/phrases you're correcting, but explain them in English.
 - Point out the 2-4 most important real errors (grammar, case, word order, verb conjugation) — not every tiny nitpick.
-- Explain each briefly and give the corrected form.
+- Explain each briefly and give the corrected form. Wrap ONLY the specific German words being compared — never a
+  whole sentence or your English explanation — like this: the wrong form in [wrong]...[/wrong], the corrected form in
+  [right]...[/right]. Example: "[wrong]ich will[/wrong] sounds blunt here; use [right]ich möchte[/right] instead."
 - Use warm, normalizing language (e.g. "a common mix-up at this level"), never a tone implying failure.
 - Keep the whole reply under 150 words.
 - If the text is not an attempt at German-writing practice (e.g. it's abusive, off-topic, or in a different task entirely), politely decline and ask for a German writing sample instead — do not engage with the off-topic content.`;
@@ -366,7 +382,7 @@ async function handleWritingCheck(request: Request, env: Env, origin: string): P
   if (!(await checkWindowedRateLimit(env, `wc:${clientIp(request)}`, 60 * 60_000, 8, 3600))) {
     return json({ error: "rate_limited" }, 429, origin);
   }
-  if (!(await checkWindowedRateLimit(env, `wcd:${await identityOrCapKey(request, env)}`, 24 * 60 * 60_000, 15, 86_400))) {
+  if (!(await checkWindowedRateLimit(env, `wcd:${await identityOrCapKey(request, env)}`, 24 * 60 * 60_000, DAILY_FEEDBACK_LIMIT, 86_400))) {
     return json({ error: "daily_limit_reached" }, 429, origin);
   }
   if (!(await checkGlobalAiBudget(env))) {
@@ -431,6 +447,24 @@ async function handleWritingReport(request: Request, env: Env, origin: string): 
   }
 }
 
+// ── /ai/quota — read-only peek at today's remaining writing/reading checks ───
+// No AI call, no rate limit of its own (cheap KV reads) — lets the UI show
+// "X of 15 left today" before the learner even taps "Get AI Feedback".
+async function handleAiQuota(request: Request, env: Env, origin: string): Promise<Response> {
+  const key = await identityOrCapKey(request, env);
+  const dayMs = 24 * 60 * 60_000;
+  const [writingUsed, readingUsed] = await Promise.all([
+    peekWindowedCount(env, `wcd:${key}`, dayMs),
+    peekWindowedCount(env, `rcd:${key}`, dayMs),
+  ]);
+  const quotaFor = (used: number) => ({
+    used,
+    limit: DAILY_FEEDBACK_LIMIT,
+    remaining: Math.max(0, DAILY_FEEDBACK_LIMIT - used),
+  });
+  return json({ writing: quotaFor(writingUsed), reading: quotaFor(readingUsed) }, 200, origin);
+}
+
 // ── /reading/check, /reading/report — optional LLM read-aloud feedback ───────
 // Same shape as /writing/check above, but the input is the transcript the
 // browser's own Web Speech API already produced locally during read-aloud
@@ -445,10 +479,15 @@ const READING_MODEL = WRITING_MODEL;
 const READING_SYSTEM_PROMPT = `You are a friendly, encouraging German pronunciation coach for A1-C1 learners on Deutsch SkillUp.
 You'll get a list of sentence pairs: the target German sentence the learner was asked to read aloud, and what speech
 recognition heard them say.
+- Write your entire reply in English — the learner is learning German, not fluent in it yet, so an all-German
+  explanation defeats the point. Quote the German words/sounds you're pointing out, but explain them in English.
 - Look for patterns across the pairs (not just one sentence) — recurring sound/word confusions, likely mispronounced
   words, or words consistently dropped or substituted. Speech recognition is imperfect, so don't over-read single
   small mismatches; focus on real recurring patterns.
-- Point out the 2-4 most useful patterns, explain briefly, and give a tip for each.
+- Point out the 2-4 most useful patterns, explain briefly, and give a tip for each. Wrap ONLY the specific German
+  words being compared — never a whole sentence or your English explanation — like this: what the learner said in
+  [wrong]...[/wrong], the correct target word in [right]...[/right]. Example: "You said [wrong]ist[/wrong] instead of
+  [right]ißt[/right] — a common ei/i mix-up."
 - Use warm, normalizing language (e.g. "a common mix-up at this level"), never a tone implying failure.
 - Keep the whole reply under 150 words.
 - If this doesn't look like a real German read-aloud transcript (e.g. it's abusive, empty, or unrelated content),
@@ -481,7 +520,7 @@ async function handleReadingCheck(request: Request, env: Env, origin: string): P
   if (!(await checkWindowedRateLimit(env, `rc:${clientIp(request)}`, 60 * 60_000, 8, 3600))) {
     return json({ error: "rate_limited" }, 429, origin);
   }
-  if (!(await checkWindowedRateLimit(env, `rcd:${await identityOrCapKey(request, env)}`, 24 * 60 * 60_000, 15, 86_400))) {
+  if (!(await checkWindowedRateLimit(env, `rcd:${await identityOrCapKey(request, env)}`, 24 * 60 * 60_000, DAILY_FEEDBACK_LIMIT, 86_400))) {
     return json({ error: "daily_limit_reached" }, 429, origin);
   }
   if (!(await checkGlobalAiBudget(env))) {
@@ -570,6 +609,7 @@ export default {
       return new Response("Forbidden", { status: 403 });
     }
 
+    if (pathname === "/ai/quota" && request.method === "GET") return handleAiQuota(request, env, origin);
     if (pathname === "/profile/load" && request.method === "GET") return handleProfileLoad(request, env, origin);
     if (pathname === "/profile/save" && request.method === "POST") return handleProfileSave(request, env, origin);
     if (pathname === "/writing/check" && request.method === "POST") return handleWritingCheck(request, env, origin);
