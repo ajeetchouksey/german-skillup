@@ -2,7 +2,7 @@ import { useState } from "react";
 import { AlertTriangle, CheckCircle2, Flag, Info, Loader2, RotateCcw, Sparkles, Wand2 } from "lucide-react";
 import { Badge, Button, GlassCard, SectionHeader } from "@/components/ui";
 import { WritingPad } from "@/components/WritingPad";
-import { checkWritingWithAI, reportWritingFeedback } from "@/lib/writingCheck";
+import { checkWritingWithAI, reportWritingFeedback, type WritingCheckResult } from "@/lib/writingCheck";
 
 export interface Feedback {
   type: "ok" | "warn" | "info";
@@ -96,7 +96,7 @@ export function WritingChecker() {
   const [feedback, setFeedback] = useState<Feedback[] | null>(null);
   const [aiFeedback, setAiFeedback] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
-  const [aiError, setAiError] = useState(false);
+  const [aiError, setAiError] = useState<Extract<WritingCheckResult, { ok: false }>["reason"] | undefined>();
   const [reported, setReported] = useState(false);
   const [reporting, setReporting] = useState(false);
 
@@ -105,19 +105,19 @@ export function WritingChecker() {
     setText("");
     setFeedback(null);
     setAiFeedback(null);
-    setAiError(false);
+    setAiError(undefined);
     setReported(false);
   };
 
   const getAiFeedback = async () => {
     setAiLoading(true);
-    setAiError(false);
+    setAiError(undefined);
     setAiFeedback(null);
     setReported(false);
     const result = await checkWritingWithAI(text);
     setAiLoading(false);
-    if (result === null) setAiError(true);
-    else setAiFeedback(result);
+    if (result.ok) setAiFeedback(result.feedback);
+    else setAiError(result.reason);
   };
 
   const report = async () => {
@@ -151,7 +151,7 @@ export function WritingChecker() {
             setText(e.target.value);
             setFeedback(null);
             setAiFeedback(null);
-            setAiError(false);
+            setAiError(undefined);
             setReported(false);
           }}
           placeholder="Schreiben Sie hier Ihren deutschen Text…"
@@ -204,7 +204,13 @@ export function WritingChecker() {
         <GlassCard className="p-4">
           <div className="flex items-start gap-2 text-sm text-amber-300">
             <AlertTriangle size={13} className="shrink-0 mt-0.5" />
-            <span>AI feedback isn't available right now — try again in a moment.</span>
+            <span>
+              {aiError === "daily_limit_reached"
+                ? "You've used up today's free AI feedback — please try again tomorrow."
+                : aiError === "rate_limited"
+                ? "Too many requests in a short time — please wait a bit and try again."
+                : "AI feedback isn't available right now — try again in a moment."}
+            </span>
           </div>
         </GlassCard>
       )}

@@ -330,8 +330,16 @@ async function callWorkersAi(userText: string, env: Env): Promise<string | null>
 }
 
 async function handleWritingCheck(request: Request, env: Env, origin: string): Promise<Response> {
-  if (!(await checkWindowedRateLimit(env, `wc:${clientIp(request)}`, 60 * 60_000, 8, 3600))) {
+  const ip = clientIp(request);
+  // Two independent windows: an hourly burst cap and a per-day cumulative cap
+  // (no login exists, so IP is the closest thing to "per user" available) —
+  // the daily cap is the one that actually bounds a single visitor's share of
+  // the account-wide free Workers AI neuron allowance across a whole day.
+  if (!(await checkWindowedRateLimit(env, `wc:${ip}`, 60 * 60_000, 8, 3600))) {
     return json({ error: "rate_limited" }, 429, origin);
+  }
+  if (!(await checkWindowedRateLimit(env, `wcd:${ip}`, 24 * 60 * 60_000, 15, 86_400))) {
+    return json({ error: "daily_limit_reached" }, 429, origin);
   }
 
   let body: { text?: unknown };
