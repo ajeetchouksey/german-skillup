@@ -1,4 +1,4 @@
-import type { LevelContent, ProgressState, VocabItem } from "@/types";
+import type { LevelContent, ProgressState, UserPersona, VocabItem } from "@/types";
 
 export interface DayActivity {
   type: "vocab" | "grammar" | "task" | "quiz" | "mission" | "revision";
@@ -39,32 +39,91 @@ function lessonActivities(hasListening: boolean, hasReading: boolean, hasWriting
   return acts;
 }
 
-export function generatePlan(data: LevelContent): DaySession[] {
+// ─── Persona-driven personalization ──────────────────────────────────────────
+// Both maps are the single source of truth for these labels — reused by
+// OnboardingQuiz's recap step and StudyPlanView's legibility strip, so the
+// wording a learner picks in the quiz is exactly what they see on their plan.
+
+export const GOAL_LABELS: Record<UserPersona["goal"], string> = {
+  travel: "Travel & everyday life",
+  work: "Work or study",
+  personal: "Relationship or family",
+  fun: "Just for fun",
+};
+
+export const TIME_BUDGET_LABELS: Record<UserPersona["timeBudget"], string> = {
+  short: "10-15 min/day",
+  medium: "20-30 min/day",
+  long: "30-45 min/day",
+};
+
+// Daily minute cap a lesson's activities get split against — the upper bound of
+// each TIME_BUDGET_LABELS range, so the plan never asks for more than was promised.
+// Tight budgets get a longer, lighter plan instead of a compressed/rushed one.
+const DAILY_CAP: Record<UserPersona["timeBudget"], number> = { short: 15, medium: 30, long: 45 };
+
+// Goals centered on using German day-to-day benefit from meeting the real-life
+// mission before the quiz, rather than after — exam-focused learners keep the
+// original quiz-before-mission order regardless of goal.
+function reorderForPersona(acts: DayActivity[], persona: UserPersona | undefined): DayActivity[] {
+  if (!persona || persona.examFocused) return acts;
+  if (persona.goal !== "travel" && persona.goal !== "personal" && persona.goal !== "fun") return acts;
+  const mission = acts.filter((a) => a.type === "mission");
+  if (mission.length === 0) return acts;
+  const rest = acts.filter((a) => a.type !== "mission");
+  const [vocabAndGrammar, remaining] = [rest.slice(0, 2), rest.slice(2)];
+  return [...vocabAndGrammar, ...mission, ...remaining];
+}
+
+// Greedily fills each day up to `cap` minutes, never splitting a single activity.
+function chunkByCap(acts: DayActivity[], cap: number): DayActivity[][] {
+  const chunks: DayActivity[][] = [];
+  let current: DayActivity[] = [];
+  let currentMinutes = 0;
+  for (const act of acts) {
+    if (current.length > 0 && currentMinutes + act.minutes > cap) {
+      chunks.push(current);
+      current = [];
+      currentMinutes = 0;
+    }
+    current.push(act);
+    currentMinutes += act.minutes;
+  }
+  if (current.length > 0) chunks.push(current);
+  return chunks;
+}
+
+// Personalization is additive: omitting `persona` reproduces today's exact
+// output (one day per lesson, fixed activity order) for skipped-quiz users.
+export function generatePlan(data: LevelContent, persona?: UserPersona): DaySession[] {
   const sessions: DaySession[] = [];
+  const cap = persona ? DAILY_CAP[persona.timeBudget] : Infinity;
   let day = 1;
   let lessonCount = 0;
 
   for (const mod of data.modules) {
     for (const lesson of mod.lessons) {
-      const acts = lessonActivities(
-        !!lesson.listeningTask,
-        !!lesson.readingTask,
-        !!lesson.writingTask,
-        !!lesson.speakingTask,
+      const acts = reorderForPersona(
+        lessonActivities(!!lesson.listeningTask, !!lesson.readingTask, !!lesson.writingTask, !!lesson.speakingTask),
+        persona,
       );
-      sessions.push({
-        day,
-        moduleId: mod.id,
-        lessonId: lesson.id,
-        moduleTitle: mod.title,
-        lessonTitle: lesson.title,
-        moduleIcon: mod.icon,
-        topic: mod.syllabusTheme,
-        activities: acts,
-        estimatedMinutes: acts.reduce((s, a) => s + a.minutes, 0),
-        isRevision: false,
+      const chunks = chunkByCap(acts, cap);
+
+      chunks.forEach((chunkActs, idx) => {
+        sessions.push({
+          day,
+          moduleId: mod.id,
+          lessonId: lesson.id,
+          moduleTitle: mod.title,
+          lessonTitle: chunks.length > 1 ? `${lesson.title} · Part ${idx + 1}/${chunks.length}` : lesson.title,
+          moduleIcon: mod.icon,
+          topic: mod.syllabusTheme,
+          activities: chunkActs,
+          estimatedMinutes: chunkActs.reduce((s, a) => s + a.minutes, 0),
+          isRevision: false,
+        });
+        day++;
       });
-      day++;
       lessonCount++;
 
       // Insert revision day after every 4 lessons

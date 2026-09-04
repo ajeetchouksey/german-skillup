@@ -17,6 +17,15 @@ export interface LevelContent { level: CEFRLevel; language: string; modules: Mod
 export type CEFRLevel = "A1" | "A2" | "B1" | "B2" | "C1";
 export interface QuizScore { correct: number; total: number; pct: number; }
 export interface ProgressState { xp: number; streak: number; lastVisit: string | null; completedLessons: string[]; quizScores: Record<string, QuizScore>; }
+export interface UserPersona {
+ experience: "none" | "some" | "conversational";
+ goal: "travel" | "work" | "personal" | "fun";
+ timeBudget: "short" | "medium" | "long";
+ examFocused: boolean;
+ startLevel: CEFRLevel;
+ completedAt: string | null;
+ skipped: boolean;
+}
 export interface ExamSection { id:string; name:string; duration:string; parts:number; description:string; taskTypes:string[]; strategy:string[]; }
 export interface ReadingPassage {
  id: string; level: CEFRLevel; title: string; sentences: string[]; translationEn?: string;

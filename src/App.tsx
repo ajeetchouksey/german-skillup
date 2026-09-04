@@ -4,6 +4,7 @@ import { NavSidebar } from "@/components/NavSidebar";
 import { DashboardHome } from "@/components/DashboardHome";
 import { Landing } from "@/components/Landing";
 import { LessonView } from "@/components/LessonView";
+import { OnboardingQuiz } from "@/components/OnboardingQuiz";
 import { StudyPlanView } from "@/components/StudyPlanView";
 import { VocabBuilder } from "@/components/VocabBuilder";
 import { Footer } from "@/components/Footer";
@@ -12,6 +13,8 @@ import { AgentPanel } from "@/components/agents/AgentPanel";
 import { LEVELS, AVAILABLE_LEVELS } from "@/data/levels";
 import { useProgress } from "@/lib/useProgress";
 import { getCompletionPct } from "@/lib/progress";
+import { usePersona } from "@/lib/usePersona";
+import { loadLevel, saveLevel, skippedPersona } from "@/lib/persona";
 import { useAuth } from "@/lib/auth";
 import { loadCloudProgress, mergeProgress, saveCloudProgress } from "@/lib/progressSync";
 import type { CEFRLevel, Lesson, Module } from "@/types";
@@ -20,7 +23,11 @@ const ENTERED_KEY = "deutsch_skillup_entered_v1";
 
 export default function App() {
   const [entered, setEntered] = useState(() => localStorage.getItem(ENTERED_KEY) === "1");
-  const [level, setLevel] = useState<CEFRLevel>(AVAILABLE_LEVELS[0] ?? "A1");
+  const { persona, setPersona } = usePersona();
+  const [showQuiz, setShowQuiz] = useState(false);
+  const [level, setLevel] = useState<CEFRLevel>(
+    () => loadLevel() ?? persona?.startLevel ?? AVAILABLE_LEVELS[0] ?? "A1"
+  );
   const [selection, setSelection] = useState<{ mod: Module; lesson: Lesson } | null>(null);
   const [view, setView] = useState<AppView>("home");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -70,6 +77,25 @@ export default function App() {
         onStart={() => {
           localStorage.setItem(ENTERED_KEY, "1");
           setEntered(true);
+        }}
+      />
+    );
+  }
+
+  if (!persona || showQuiz) {
+    return (
+      <OnboardingQuiz
+        onComplete={(p) => {
+          setPersona(p);
+          setLevel(p.startLevel);
+          saveLevel(p.startLevel);
+          setShowQuiz(false);
+        }}
+        onSkip={() => {
+          // Re-opened via "edit preferences" with an existing persona: skip = cancel,
+          // don't overwrite real answers with the skipped placeholder.
+          if (!persona) setPersona(skippedPersona(level));
+          setShowQuiz(false);
         }}
       />
     );
@@ -140,7 +166,7 @@ export default function App() {
           onClose={() => setSidebarOpen(false)}
           view={activeView}
           level={level}
-          onLevelChange={(lvl) => { setLevel(lvl); goHome(); }}
+          onLevelChange={(lvl) => { setLevel(lvl); saveLevel(lvl); goHome(); }}
           progress={progress}
           completionPct={completionPct}
           activeView={activeView}
@@ -149,6 +175,7 @@ export default function App() {
           onVocab={() => setView((v) => v === "vocab" ? "home" : "vocab")}
           onAgents={() => setView((v) => v === "agents" ? "home" : "agents")}
           onReset={handleReset}
+          onEditPreferences={() => setShowQuiz(true)}
           data={data}
           activeLessonId={selection?.lesson.id ?? null}
           onSelectLesson={(mod, lesson) => { setSelection({ mod, lesson }); setView("lesson"); }}
@@ -160,7 +187,7 @@ export default function App() {
               {view === "agents" ? (
                 <AgentPanel level={level} />
               ) : view === "plan" ? (
-                <StudyPlanView data={data} onBack={goHome} />
+                <StudyPlanView data={data} persona={persona} onBack={goHome} onOpenLesson={openLesson} />
               ) : view === "vocab" ? (
                 <VocabBuilder data={data} onBack={goHome} />
               ) : view === "lesson" && selection ? (

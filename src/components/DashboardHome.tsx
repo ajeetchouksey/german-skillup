@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  ArrowRight, BarChart2, BookOpen, CalendarDays, CheckCircle2, Flame, Star, Zap,
+  ArrowRight, BarChart2, BookOpen, CalendarDays, CheckCircle2, ChevronRight, Flame, Star, Zap,
 } from "lucide-react";
 import type { LevelContent, ProgressState } from "@/types";
 import { Badge, GlassCard, StatGrid } from "@/components/ui";
@@ -159,33 +159,43 @@ export function DashboardHome({ data, progress, completionPct, onGoToPlan, onGoT
           <Badge label={`${data.modules.length} modules`} variant="slate" />
         </div>
         <div className="space-y-3">
-          {readiness.map((r, i) => (
-            <div key={r.moduleId}>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-slate-300 flex items-center gap-1.5">
-                  <span>{r.moduleIcon}</span>
-                  <span className="truncate max-w-[160px]">{r.moduleTitle}</span>
-                </span>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-[10px] text-muted">{r.lessonsComplete}/{r.totalLessons}</span>
-                  <span
-                    className={`text-[9px] px-1.5 py-0.5 rounded border font-semibold ${
-                      r.pct >= 70 ? "bg-emerald-950 text-emerald-400 border-emerald-800"
-                      : r.pct > 0  ? "bg-violet-950 text-violet-400 border-violet-800"
-                      :              "bg-slate-800 text-slate-500 border-slate-700"
-                    }`}
-                  >
-                    {r.pct >= 70 ? "Strong" : r.pct > 0 ? "In progress" : "New"}
+          {readiness.map((r, i) => {
+            const mod = data.modules.find((m) => m.id === r.moduleId);
+            const target = mod?.lessons.find((l) => !progress.completedLessons.includes(l.id)) ?? mod?.lessons[0];
+            return (
+              <button
+                key={r.moduleId}
+                onClick={() => target && onOpenLesson(r.moduleId, target.id)}
+                disabled={!target}
+                className="block w-full text-left group disabled:cursor-not-allowed"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-slate-300 group-hover:text-white flex items-center gap-1.5 transition-colors">
+                    <span>{r.moduleIcon}</span>
+                    <span className="truncate max-w-[160px]">{r.moduleTitle}</span>
+                    <ChevronRight size={11} className="text-slate-600 group-hover:text-violet-400 shrink-0 transition-colors" />
                   </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[10px] text-muted">{r.lessonsComplete}/{r.totalLessons}</span>
+                    <span
+                      className={`text-[9px] px-1.5 py-0.5 rounded border font-semibold ${
+                        r.pct >= 70 ? "bg-emerald-950 text-emerald-400 border-emerald-800"
+                        : r.pct > 0  ? "bg-violet-950 text-violet-400 border-violet-800"
+                        :              "bg-slate-800 text-slate-500 border-slate-700"
+                      }`}
+                    >
+                      {r.pct >= 70 ? "Strong" : r.pct > 0 ? "In progress" : "New"}
+                    </span>
+                  </div>
                 </div>
-              </div>
-              <AnimatedBar
-                pct={r.lessonsComplete > 0 ? Math.max(r.pct, 5) : 0}
-                color={r.pct >= 70 ? "#2fbf71" : r.pct > 0 ? "#7c3aed" : "#1e2d42"}
-                delay={i * 60}
-              />
-            </div>
-          ))}
+                <AnimatedBar
+                  pct={r.lessonsComplete > 0 ? Math.max(r.pct, 5) : 0}
+                  color={r.pct >= 70 ? "#2fbf71" : r.pct > 0 ? "#7c3aed" : "#1e2d42"}
+                  delay={i * 60}
+                />
+              </button>
+            );
+          })}
         </div>
       </GlassCard>
     </div>

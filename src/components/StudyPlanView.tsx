@@ -1,16 +1,18 @@
 import { useState, useMemo, useCallback } from "react";
 import {
-  CalendarDays, CheckCircle2, Circle, ChevronDown, ChevronRight,
+  ArrowRight, CalendarDays, CheckCircle2, Circle, ChevronDown, ChevronRight,
   Clock, BookOpen, Brain, RotateCcw, Zap,
 } from "lucide-react";
 import { Badge, GlassCard } from "@/components/ui";
-import type { LevelContent } from "@/types";
+import type { LevelContent, UserPersona } from "@/types";
 import {
   generatePlan,
   loadDoneDays,
   saveDoneDays,
   toggleDayDone,
   nextIncompleteDay,
+  GOAL_LABELS,
+  TIME_BUDGET_LABELS,
   type DaySession,
   type DayActivity,
 } from "@/lib/studyPlan";
@@ -29,20 +31,26 @@ function SessionCard({
   session,
   done,
   onToggle,
+  onOpenLesson,
   defaultOpen,
 }: {
   session: DaySession;
   done: boolean;
   onToggle: (day: number) => void;
+  onOpenLesson: (moduleId: string, lessonId: string) => void;
   defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(!!defaultOpen);
 
   return (
     <div className={`glass-card rounded-xl overflow-hidden transition-all duration-300 ${done ? "opacity-50" : ""}`}>
-      <button
+      {/* A div, not a button — it wraps the checkmark button below, and a button can't nest a button. */}
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center gap-3 p-4 text-left hover:bg-[rgba(255,255,255,0.03)] transition-colors"
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen((o) => !o); } }}
+        className="w-full flex items-center gap-3 p-4 text-left hover:bg-[rgba(255,255,255,0.03)] transition-colors cursor-pointer"
         aria-expanded={open}
       >
         <button
@@ -85,7 +93,7 @@ function SessionCard({
         {open
           ? <ChevronDown size={15} className="text-slate-500 shrink-0" />
           : <ChevronRight size={15} className="text-slate-500 shrink-0" />}
-      </button>
+      </div>
 
       {open && (
         <div className="border-t border-border/60 divide-y divide-border/30">
@@ -97,7 +105,7 @@ function SessionCard({
             </div>
           ))}
           {!session.isRevision && (
-            <div className="px-4 py-3">
+            <div className="px-4 py-3 flex items-center justify-between gap-3">
               <button
                 onClick={() => onToggle(session.day)}
                 className={`text-xs font-medium transition-colors flex items-center gap-1.5 ${
@@ -107,6 +115,12 @@ function SessionCard({
                 <CheckCircle2 size={12} />
                 {done ? "Unmark as complete" : "Mark day as complete"}
               </button>
+              <button
+                onClick={() => onOpenLesson(session.moduleId, session.lessonId)}
+                className="text-xs font-medium text-violet-400 hover:text-violet-300 transition-colors flex items-center gap-1.5"
+              >
+                Open lesson <ArrowRight size={12} />
+              </button>
             </div>
           )}
         </div>
@@ -115,8 +129,16 @@ function SessionCard({
   );
 }
 
-export function StudyPlanView({ data, onBack }: { data: LevelContent; onBack: () => void }) {
-  const plan = useMemo(() => generatePlan(data), [data]);
+export function StudyPlanView({
+  data, persona, onBack, onOpenLesson,
+}: {
+  data: LevelContent;
+  persona: UserPersona | null;
+  onBack: () => void;
+  onOpenLesson: (moduleId: string, lessonId: string) => void;
+}) {
+  const activePersona = persona && !persona.skipped ? persona : undefined;
+  const plan = useMemo(() => generatePlan(data, activePersona), [data, activePersona]);
   const [doneDays, setDoneDays] = useState(() => loadDoneDays());
   const [filter, setFilter] = useState<"all" | "pending" | "done">("all");
 
@@ -147,12 +169,19 @@ export function StudyPlanView({ data, onBack }: { data: LevelContent; onBack: ()
         </button>
         <div className="flex items-center gap-3 flex-wrap">
           <CalendarDays size={20} className="text-violet-400" />
-          <h1 className="heading-gradient text-2xl font-bold">30-Day Study Plan</h1>
-          <Badge label="Goethe A1" variant="violet" />
+          <h1 className="heading-gradient text-2xl font-bold">{plan.length}-Day Study Plan</h1>
+          <Badge label={`Level ${data.level}`} variant="violet" />
         </div>
         <p className="text-sm text-muted mt-1">
           {plan.length} days · {doneDays.size} completed · {pct}% done
         </p>
+        {activePersona && (
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            <Badge label={`Personalized for ${TIME_BUDGET_LABELS[activePersona.timeBudget]}`} variant="blue" size="xs" />
+            <Badge label={GOAL_LABELS[activePersona.goal]} variant="emerald" size="xs" />
+            {activePersona.examFocused && <Badge label="Exam-focused" variant="amber" size="xs" />}
+          </div>
+        )}
       </div>
 
       {/* Progress bar */}
@@ -199,6 +228,7 @@ export function StudyPlanView({ data, onBack }: { data: LevelContent; onBack: ()
             session={session}
             done={doneDays.has(session.day)}
             onToggle={handleToggle}
+            onOpenLesson={onOpenLesson}
             defaultOpen={nextDay?.day === session.day}
           />
         ))}

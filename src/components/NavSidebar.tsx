@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { BarChart2, BookOpen, CalendarDays, Check, ChevronRight, FlaskConical, Flame, Home, RotateCcw, Star, X } from "lucide-react";
+import { BarChart2, BookOpen, CalendarDays, Check, ChevronRight, FlaskConical, Flame, Home, RotateCcw, Sparkles, Star, X } from "lucide-react";
 import { AVAILABLE_LEVELS } from "@/data/levels";
 import type { CEFRLevel, LevelContent, Lesson, Module, ProgressState } from "@/types";
 import type { AppView } from "./Header";
@@ -18,6 +18,7 @@ interface NavSidebarProps {
   onVocab: () => void;
   onAgents: () => void;
   onReset: () => void;
+  onEditPreferences: () => void;
   data: LevelContent;
   activeLessonId: string | null;
   onSelectLesson: (mod: Module, lesson: Lesson) => void;
@@ -43,7 +44,7 @@ function NavItem({
 
 export function NavSidebar({
   open, onClose, view, level, onLevelChange, progress, completionPct,
-  activeView, onHome, onPlan, onVocab, onAgents, onReset,
+  activeView, onHome, onPlan, onVocab, onAgents, onReset, onEditPreferences,
   data, activeLessonId, onSelectLesson,
 }: NavSidebarProps) {
   const [openModuleId, setOpenModuleId] = useState<string | null>(
@@ -192,6 +193,14 @@ export function NavSidebar({
             <RotateCcw size={12} />
           </button>
         </div>
+
+        <button
+          onClick={onEditPreferences}
+          className="flex w-full items-center gap-1.5 text-[10px] text-slate-500 transition-colors hover:text-lilac"
+        >
+          <Sparkles size={10} />
+          Edit your plan preferences
+        </button>
       </div>
     </aside>
   );
