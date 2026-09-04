@@ -1,6 +1,6 @@
 {
   "name": "deutsch-skillup",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "description": "Deutsch SkillUp — free German learning app (A1 → C1 roadmap), no account required, same platform philosophy as Aarya SkillUp.",
   "type": "module",

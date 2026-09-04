@@ -4,6 +4,30 @@ All notable changes to Deutsch SkillUp are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 versioning follows [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-09-04
+
+### Added
+- Onboarding persona quiz (experience, goal, daily time budget, exam focus) shown once between Landing and the app,
+  always skippable — personalizes the study plan's pacing and activity order with pure client-side logic, no AI
+  or server call involved
+- AI Practice Lab: optional, on-demand LLM feedback on Cloudflare Workers AI, anonymous by design (no login
+  required) — a Writing Checker "Get AI Feedback" button and a Read Aloud pronunciation-pattern coach, both backed
+  by a dedicated Worker (`api.hallo.aaryaai.dev`) with content-safety moderation and three layers of rate limiting
+  (hourly burst, per-learner daily cap, shared global daily budget)
+- AI feedback now highlights the specific wrong/corrected German words inline (red/green), and always replies in
+  English so an A1-C1 learner can actually follow the explanation
+- A visible "X/15 AI checks left today" quota badge next to both AI feedback buttons, backed by a new read-only
+  `GET /ai/quota` endpoint — the limit is now legible before a learner hits it, not just after
+- Content-authoring AI illustrations pipeline (Phase 4a)
+- Click-through navigation from the Study Plan's day cards and the Dashboard's module-readiness rows straight into
+  the relevant lesson — both previously dead-ended at an expand/collapse toggle with no way to actually open the lesson
+- CEFR level now persists across reloads instead of resetting to the first available level every visit
+
+### Fixed
+- A pre-existing invalid-HTML (button-in-button) console warning on the Study Plan page, cleared as part of making
+  its day cards navigable
+- `tsconfig.app.json`'s deprecated `baseUrl` (removed ahead of TypeScript 7.0)
+
 ## [0.2.1] - 2026-08-03
 
 ### Added
