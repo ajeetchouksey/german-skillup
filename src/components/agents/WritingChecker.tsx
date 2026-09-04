@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { AlertTriangle, CheckCircle2, Info, RotateCcw, Wand2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Flag, Info, Loader2, RotateCcw, Sparkles, Wand2 } from "lucide-react";
 import { Badge, Button, GlassCard, SectionHeader } from "@/components/ui";
 import { WritingPad } from "@/components/WritingPad";
+import { checkWritingWithAI, reportWritingFeedback } from "@/lib/writingCheck";
 
 export interface Feedback {
   type: "ok" | "warn" | "info";
@@ -93,9 +94,39 @@ export function analyze(text: string): Feedback[] {
 export function WritingChecker() {
   const [text, setText] = useState("");
   const [feedback, setFeedback] = useState<Feedback[] | null>(null);
+  const [aiFeedback, setAiFeedback] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState(false);
+  const [reported, setReported] = useState(false);
+  const [reporting, setReporting] = useState(false);
 
   const run = () => setFeedback(analyze(text));
-  const clear = () => { setText(""); setFeedback(null); };
+  const clear = () => {
+    setText("");
+    setFeedback(null);
+    setAiFeedback(null);
+    setAiError(false);
+    setReported(false);
+  };
+
+  const getAiFeedback = async () => {
+    setAiLoading(true);
+    setAiError(false);
+    setAiFeedback(null);
+    setReported(false);
+    const result = await checkWritingWithAI(text);
+    setAiLoading(false);
+    if (result === null) setAiError(true);
+    else setAiFeedback(result);
+  };
+
+  const report = async () => {
+    if (!aiFeedback || reporting) return;
+    setReporting(true);
+    const ok = await reportWritingFeedback(text, aiFeedback);
+    setReporting(false);
+    if (ok) setReported(true);
+  };
 
   const iconFor = (type: Feedback["type"]) =>
     type === "ok" ? <CheckCircle2 size={13} className="text-emerald-400 shrink-0 mt-0.5" />
@@ -116,7 +147,13 @@ export function WritingChecker() {
       <GlassCard className="p-4">
         <textarea
           value={text}
-          onChange={(e) => { setText(e.target.value); setFeedback(null); }}
+          onChange={(e) => {
+            setText(e.target.value);
+            setFeedback(null);
+            setAiFeedback(null);
+            setAiError(false);
+            setReported(false);
+          }}
           placeholder="Schreiben Sie hier Ihren deutschen Text…"
           rows={7}
           className="w-full resize-y rounded-lg border border-border bg-bg-alt px-3.5 py-3 text-sm text-slate-200 placeholder-slate-600 outline-none focus:border-yellow-500/40 transition-colors"
@@ -126,6 +163,15 @@ export function WritingChecker() {
           <div className="flex gap-2">
             <Button variant="ghost" size="sm" icon={RotateCcw} onClick={clear} disabled={!text}>Clear</Button>
             <Button variant="outline" size="sm" icon={Wand2} onClick={run} disabled={!text.trim()}>Analyse</Button>
+            <Button
+              variant="outline"
+              size="sm"
+              icon={aiLoading ? Loader2 : Sparkles}
+              onClick={getAiFeedback}
+              disabled={!text.trim() || aiLoading}
+            >
+              {aiLoading ? "Thinking…" : "Get AI Feedback"}
+            </Button>
           </div>
         </div>
       </GlassCard>
@@ -150,6 +196,39 @@ export function WritingChecker() {
               label={`${feedback.filter((f) => f.type === "warn").length} warnings`}
               variant="amber"
             />
+          </div>
+        </GlassCard>
+      )}
+
+      {aiError && (
+        <GlassCard className="p-4">
+          <div className="flex items-start gap-2 text-sm text-amber-300">
+            <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+            <span>AI feedback isn't available right now — try again in a moment.</span>
+          </div>
+        </GlassCard>
+      )}
+
+      {aiFeedback && (
+        <GlassCard accent="violet" className="p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Sparkles size={13} className="text-lilac shrink-0" />
+            <p className="text-xs font-bold uppercase tracking-widest text-lilac">AI Feedback</p>
+          </div>
+          <p className="text-sm text-slate-200 whitespace-pre-wrap">{aiFeedback}</p>
+          <div className="pt-2 border-t border-border">
+            {reported ? (
+              <span className="text-xs text-muted">Thanks — this has been flagged for review.</span>
+            ) : (
+              <button
+                onClick={report}
+                disabled={reporting}
+                className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-amber-300 transition-colors disabled:opacity-50 disabled:pointer-events-none"
+              >
+                <Flag size={12} />
+                {reporting ? "Reporting…" : "Report this feedback"}
+              </button>
+            )}
           </div>
         </GlassCard>
       )}

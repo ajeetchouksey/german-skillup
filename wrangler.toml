@@ -30,6 +30,22 @@ binding       = "DB"
 database_name = "deutsch-skillup-progress"
 database_id   = "387af76a-8482-48fe-ac8d-3ab4ef0fa7ff"
 
+# ── Workers AI — powers the optional /writing/check "Get AI Feedback" route ──
+# (Phase 4b). Two open models on Workers AI's free daily neuron allowance,
+# NOT a paid provider like Anthropic — this is an open-source project and
+# /writing/check is anonymous/user-triggered, so it must never be able to run
+# up a bill on its own: llama-3.1-8b-instruct-fast writes the coaching reply,
+# llama-guard-3-8b is the content-safety classifier gating it (see
+# workers/auth.ts's isSafeInput — a real moderation call, not just a prompt
+# instruction, since an open model has no Anthropic-style built-in safety
+# layer to lean on). No API key: a binding is authenticated automatically by
+# the Worker's own execution context. Watch actual usage via `wrangler tail`
+# (each call logs a one-line JSON record) and the Workers AI section of the
+# Cloudflare dashboard (neuron consumption per model) — add a hard daily cap
+# later only if real traffic ever approaches the free tier.
+[ai]
+binding = "AI"
+
 # ── Secrets — set via CLI, never commit values ────────────────────────────────
 # Status: KV namespace, D1 database, schema, and all three secrets are live.
 #
@@ -51,6 +67,11 @@ database_id   = "387af76a-8482-48fe-ac8d-3ab4ef0fa7ff"
 #     → a random 32-byte hex string, deliberately NOT shared with
 #       ajch_platform's own SESSION_SIGNING_KEY, so a token minted by one
 #       Worker can never be replayed against the other.
+#
+# No secret needed for /writing/check (Phase 4b) — it runs on the [ai]
+# binding above, not a keyed API. Before it goes live: re-run `wrangler d1
+# execute deutsch-skillup-progress --remote --file=workers/schema.sql` to
+# create the flagged_writing_feedback table the /writing/report route needs.
 #
 # ── Deploy ────────────────────────────────────────────────────────────────────
 # Worker is deployed: https://api.hallo.aaryaai.dev (custom domain, auto-TLS)

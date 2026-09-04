@@ -7,12 +7,14 @@
 // for the rules this file must keep satisfying.
 //
 // Scope, on purpose: Google login only (no GitHub — this app's audience is
-// non-technical, per CLAUDE.md). No mentor/AI proxy, no comments, no GitHub
-// Gist sync — none of that exists in this app.
+// non-technical, per CLAUDE.md), plus an optional writing-feedback route
+// (Phase 4b, below). No comments, no GitHub Gist sync — none of that exists
+// in this app.
 
 export interface Env {
   DB: D1Database;
   RATE_LIMITER: KVNamespace;
+  AI: Ai;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
   SESSION_SIGNING_KEY?: string;
@@ -247,6 +249,149 @@ async function handleProfileSave(request: Request, env: Env, origin: string): Pr
   }
 }
 
+// ── /writing/check, /writing/report — optional LLM writing feedback (Phase 4b) ──
+// Anonymous by design (no login required, mirrors FR-3.3 — the app stays fully
+// usable without signing in). Runs on Cloudflare Workers AI (open models —
+// llama-3.1-8b-instruct-fast for the coaching reply, llama-guard-3-8b as the
+// content-safety classifier below) via a plain [ai] binding — NOT a paid
+// provider: no API key to manage, and usage draws from the account's free
+// daily neuron allowance (this is an open-source project — see the project
+// plan's Phase 4 note on why a paid-per-call provider was deliberately
+// avoided for a route anonymous end users can trigger). Cost/abuse control is
+// IP-rate-limiting rather than a session, and there's deliberately no response
+// caching — free-text submissions have near-zero repeat-hit rate, so caching
+// would add complexity for no real savings.
+//
+// Observability, not a hard cutoff: every call logs a one-line JSON record
+// (status + rough token counts) that `wrangler tail`/Workers Logs surfaces in
+// real time, and Cloudflare's own dashboard already tracks Workers AI neuron
+// consumption per model — start on the free tier, watch actual usage, add a
+// hard daily cap later only if real traffic ever approaches the free allowance.
+
+const MAX_WRITING_TEXT_LENGTH = 2000;
+const WRITING_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
+const MODERATION_MODEL = "@cf/meta/llama-guard-3-8b";
+const DECLINE_MESSAGE =
+  "This doesn't look like a German-writing sample I can help with — please share a piece of your own German writing and I'll give feedback on it.";
+const WRITING_SYSTEM_PROMPT = `You are a friendly, encouraging German-writing coach for A1-C1 learners on Deutsch SkillUp.
+Given a short piece of the learner's German writing:
+- Point out the 2-4 most important real errors (grammar, case, word order, verb conjugation) — not every tiny nitpick.
+- Explain each briefly and give the corrected form.
+- Use warm, normalizing language (e.g. "a common mix-up at this level"), never a tone implying failure.
+- Keep the whole reply under 150 words.
+- If the text is not an attempt at German-writing practice (e.g. it's abusive, off-topic, or in a different task entirely), politely decline and ask for a German writing sample instead — do not engage with the off-topic content.`;
+
+function clientIp(request: Request): string {
+  return request.headers.get("CF-Connecting-IP") ?? "unknown";
+}
+
+/** Provider-side content-safety gate (NFR-10's Phase 4 hard gate): a real
+ * classifier model, not just a prompt instruction — the writing-coach model
+ * below is open-weight and easier to jailbreak than a provider like Anthropic
+ * with its own built-in safety training, so this call is the actual control,
+ * not defense-in-depth. Llama Guard's own output convention is a first line
+ * of "safe"/"unsafe" (fails open to "safe" on any error — a false negative
+ * here just means the request proceeds to the still-present system-prompt
+ * instruction, never a hard failure of the feature). */
+async function isSafeInput(userText: string, env: Env): Promise<boolean> {
+  try {
+    const result = (await env.AI.run(MODERATION_MODEL, {
+      messages: [{ role: "user", content: userText }],
+    })) as AiTextGenerationOutput;
+    const verdict = result.response?.trim().toLowerCase() ?? "";
+    return !verdict.startsWith("unsafe");
+  } catch {
+    return true;
+  }
+}
+
+async function callWorkersAi(userText: string, env: Env): Promise<string | null> {
+  try {
+    const result = (await env.AI.run(WRITING_MODEL, {
+      messages: [
+        { role: "system", content: WRITING_SYSTEM_PROMPT },
+        { role: "user", content: userText },
+      ],
+      max_tokens: 400,
+    })) as AiTextGenerationOutput;
+    const feedback = result.response;
+    console.log(JSON.stringify({
+      event: "writing-check",
+      status: feedback ? "ok" : "empty",
+      model: WRITING_MODEL,
+      inputChars: userText.length,
+      outputChars: feedback?.length ?? 0,
+    }));
+    return feedback && feedback.trim() ? feedback : null;
+  } catch (err) {
+    console.error(JSON.stringify({ event: "writing-check", status: "error", message: (err as Error).message }));
+    return null;
+  }
+}
+
+async function handleWritingCheck(request: Request, env: Env, origin: string): Promise<Response> {
+  if (!(await checkWindowedRateLimit(env, `wc:${clientIp(request)}`, 60 * 60_000, 8, 3600))) {
+    return json({ error: "rate_limited" }, 429, origin);
+  }
+
+  let body: { text?: unknown };
+  try {
+    body = (await request.json()) as { text?: unknown };
+  } catch {
+    return json({ error: "Invalid JSON" }, 400, origin);
+  }
+  if (typeof body.text !== "string" || !body.text.trim()) {
+    return json({ error: "Missing text" }, 400, origin);
+  }
+  if (body.text.length > MAX_WRITING_TEXT_LENGTH) {
+    return json({ error: "Text too long" }, 413, origin);
+  }
+
+  if (!(await isSafeInput(body.text, env))) {
+    return json({ feedback: DECLINE_MESSAGE }, 200, origin);
+  }
+
+  const feedback = await callWorkersAi(body.text, env);
+  if (feedback === null) {
+    return json({ error: "Service temporarily unavailable" }, 503, origin);
+  }
+  return json({ feedback }, 200, origin);
+}
+
+// NOTE: text/feedback here are client-supplied and not verified against an
+// actual prior /writing/check call — a caller could in principle POST an
+// arbitrary pair. Low severity (rate-limited, no injection vector, this is a
+// human-review queue not an automated action), but don't treat rows in
+// flagged_writing_feedback as verified provenance without keeping that in mind.
+async function handleWritingReport(request: Request, env: Env, origin: string): Promise<Response> {
+  if (!(await checkWindowedRateLimit(env, `wr:${clientIp(request)}`, 60 * 60_000, 8, 3600))) {
+    return json({ error: "rate_limited" }, 429, origin);
+  }
+
+  let body: { text?: unknown; feedback?: unknown };
+  try {
+    body = (await request.json()) as { text?: unknown; feedback?: unknown };
+  } catch {
+    return json({ error: "Invalid JSON" }, 400, origin);
+  }
+  if (typeof body.text !== "string" || typeof body.feedback !== "string") {
+    return json({ error: "Missing text or feedback" }, 400, origin);
+  }
+  if (body.text.length > MAX_WRITING_TEXT_LENGTH || body.feedback.length > MAX_WRITING_TEXT_LENGTH) {
+    return json({ error: "Payload too large" }, 413, origin);
+  }
+
+  try {
+    await env.DB.prepare(
+      "INSERT INTO flagged_writing_feedback (text, feedback, created_at) VALUES (?1, ?2, ?3)",
+    ).bind(body.text, body.feedback, new Date().toISOString()).run();
+    return json({ status: "ok" }, 200, origin);
+  } catch (err) {
+    console.error("writing-report-failed:", (err as Error).message);
+    return json({ error: "Service temporarily unavailable" }, 503, origin);
+  }
+}
+
 // ── Router ─────────────────────────────────────────────────────────────────
 
 export default {
@@ -272,6 +417,8 @@ export default {
 
     if (pathname === "/profile/load" && request.method === "GET") return handleProfileLoad(request, env, origin);
     if (pathname === "/profile/save" && request.method === "POST") return handleProfileSave(request, env, origin);
+    if (pathname === "/writing/check" && request.method === "POST") return handleWritingCheck(request, env, origin);
+    if (pathname === "/writing/report" && request.method === "POST") return handleWritingReport(request, env, origin);
 
     return json({ error: "not_found" }, 404, origin);
   },
