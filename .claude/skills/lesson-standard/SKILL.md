@@ -61,4 +61,9 @@ Every `Lesson.examMapping` and `Lesson.examFocus` must name a real section id/na
 
 ### Illustrations (when authored)
 
-A curated illustration is optional infrastructure, not a per-lesson requirement (see `lesson-schema`'s `illustration` field). When one is added: CC0/CC-BY licensed only, `credit` populated whenever the license requires attribution, and the image must depict its subject respectfully — no stereotyped caricature of a nationality/culture, matching the content-safety hard rule above.
+An illustration is optional infrastructure, not a per-lesson requirement (see `lesson-schema`'s `illustration` field), and comes from one of two sources:
+
+- **Curated**: a real hand-picked image. CC0/CC-BY licensed only, `credit` populated whenever the license requires attribution.
+- **AI-generated** (Phase 4a, `scripts/generate-illustration.mjs`, Cloudflare Workers AI / flux-1-schnell): the prompt you write is always built from the lesson's own vetted theme/vocab/grammar — never from anything outside the brief — which is the actual content-safety control here (the script's own denylist is defense-in-depth on top of that, not the primary gate). `credit` is always `"AI-generated (Cloudflare Workers AI, flux-1-schnell)"`.
+
+Either way, the image must depict its subject respectfully — no stereotyped caricature of a nationality/culture, matching the content-safety hard rule above.
