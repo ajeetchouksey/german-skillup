@@ -19,3 +19,12 @@ CREATE TABLE IF NOT EXISTS flagged_writing_feedback (
   feedback   TEXT NOT NULL,            -- the AI feedback they flagged
   created_at TEXT NOT NULL             -- ISO 8601
 );
+
+-- Same purpose as flagged_writing_feedback, for /reading/check's read-aloud
+-- transcript feedback.
+CREATE TABLE IF NOT EXISTS flagged_reading_feedback (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  transcript TEXT NOT NULL,            -- formatted target/heard sentence pairs
+  feedback   TEXT NOT NULL,            -- the AI feedback they flagged
+  created_at TEXT NOT NULL             -- ISO 8601
+);

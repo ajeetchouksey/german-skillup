@@ -249,29 +249,40 @@ async function handleProfileSave(request: Request, env: Env, origin: string): Pr
   }
 }
 
-// ── /writing/check, /writing/report — optional LLM writing feedback (Phase 4b) ──
-// Anonymous by design (no login required, mirrors FR-3.3 — the app stays fully
-// usable without signing in). Runs on Cloudflare Workers AI (open models —
-// llama-3.1-8b-instruct-fast for the coaching reply, llama-guard-3-8b as the
-// content-safety classifier below) via a plain [ai] binding — NOT a paid
-// provider: no API key to manage, and usage draws from the account's free
-// daily neuron allowance (this is an open-source project — see the project
-// plan's Phase 4 note on why a paid-per-call provider was deliberately
-// avoided for a route anonymous end users can trigger). Cost/abuse control is
-// IP-rate-limiting rather than a session, and there's deliberately no response
-// caching — free-text submissions have near-zero repeat-hit rate, so caching
+// ── /writing/check, /writing/report, /reading/check, /reading/report ─────────
+// (Phase 4b) — optional LLM feedback on a learner's writing or read-aloud
+// transcript. Anonymous by design (no login required, mirrors FR-3.3 — the
+// app stays fully usable without signing in). Runs on Cloudflare Workers AI
+// (open models — llama-3.1-8b-instruct-fast for the coaching reply,
+// llama-guard-3-8b as the content-safety classifier below) via a plain [ai]
+// binding — NOT a paid provider: no API key to manage, and usage draws from
+// the account's free daily neuron allowance (this is an open-source project,
+// and both routes are anonymous/user-triggered, so they must never be able
+// to run up a bill on their own). There's deliberately no response caching —
+// free-text/transcript submissions have near-zero repeat-hit rate, so caching
 // would add complexity for no real savings.
 //
-// Observability, not a hard cutoff: every call logs a one-line JSON record
-// (status + rough token counts) that `wrangler tail`/Workers Logs surfaces in
-// real time, and Cloudflare's own dashboard already tracks Workers AI neuron
-// consumption per model — start on the free tier, watch actual usage, add a
-// hard daily cap later only if real traffic ever approaches the free allowance.
+// Rate limiting is three independent layers, checked in this order:
+// 1. An hourly per-IP burst cap (protects against one client hammering).
+// 2. A daily cap keyed by *identity when logged in, IP when anonymous* (see
+//    identityOrCapKey) — the closest available proxy to "per user" without
+//    requiring login, and immune to a logged-in user resetting it by
+//    switching networks.
+// 3. A shared daily budget across BOTH features combined (see
+//    GLOBAL_DAILY_AI_BUDGET) — now that there are two AI-calling routes
+//    sharing one account-wide free neuron pool (also shared with whatever
+//    ajch_platform draws on this same Cloudflare account), no single feature
+//    should be able to silently consume the whole thing.
+//
+// Observability, not a hard cutoff beyond the budget above: every call logs
+// a one-line JSON record (status + rough char counts) that `wrangler
+// tail`/Workers Logs surfaces in real time, and Cloudflare's own dashboard
+// already tracks Workers AI neuron consumption per model.
 
 const MAX_WRITING_TEXT_LENGTH = 2000;
 const WRITING_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
 const MODERATION_MODEL = "@cf/meta/llama-guard-3-8b";
-const DECLINE_MESSAGE =
+const WRITING_DECLINE_MESSAGE =
   "This doesn't look like a German-writing sample I can help with — please share a piece of your own German writing and I'll give feedback on it.";
 const WRITING_SYSTEM_PROMPT = `You are a friendly, encouraging German-writing coach for A1-C1 learners on Deutsch SkillUp.
 Given a short piece of the learner's German writing:
@@ -281,8 +292,24 @@ Given a short piece of the learner's German writing:
 - Keep the whole reply under 150 words.
 - If the text is not an attempt at German-writing practice (e.g. it's abusive, off-topic, or in a different task entirely), politely decline and ask for a German writing sample instead — do not engage with the off-topic content.`;
 
+// Shared across writing + reading — see the block comment above.
+const GLOBAL_DAILY_AI_BUDGET = 120; // "feature calls" (moderation + coaching pair), not raw AI.run() invocations
+
 function clientIp(request: Request): string {
   return request.headers.get("CF-Connecting-IP") ?? "unknown";
+}
+
+/** "Per user" key for the daily cap: the logged-in identity when a valid
+ * session token is present (stable across networks/devices for that person),
+ * IP otherwise. Login is never required to use these routes (FR-3.3) — this
+ * is purely an opportunistic upgrade when a token happens to be attached. */
+async function identityOrCapKey(request: Request, env: Env): Promise<string> {
+  const identity = await authenticateProfileRequest(request, env);
+  return identity ? `${identity.provider}:${identity.id}` : clientIp(request);
+}
+
+async function checkGlobalAiBudget(env: Env): Promise<boolean> {
+  return checkWindowedRateLimit(env, "ai-budget-global", 24 * 60 * 60_000, GLOBAL_DAILY_AI_BUDGET, 86_400);
 }
 
 /** Provider-side content-safety gate (NFR-10's Phase 4 hard gate): a real
@@ -305,41 +332,45 @@ async function isSafeInput(userText: string, env: Env): Promise<boolean> {
   }
 }
 
-async function callWorkersAi(userText: string, env: Env): Promise<string | null> {
+async function callWorkersAi(
+  model: string,
+  systemPrompt: string,
+  userText: string,
+  env: Env,
+  eventName: string,
+): Promise<string | null> {
   try {
-    const result = (await env.AI.run(WRITING_MODEL, {
+    const result = (await env.AI.run(model, {
       messages: [
-        { role: "system", content: WRITING_SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt },
         { role: "user", content: userText },
       ],
       max_tokens: 400,
     })) as AiTextGenerationOutput;
     const feedback = result.response;
     console.log(JSON.stringify({
-      event: "writing-check",
+      event: eventName,
       status: feedback ? "ok" : "empty",
-      model: WRITING_MODEL,
+      model,
       inputChars: userText.length,
       outputChars: feedback?.length ?? 0,
     }));
     return feedback && feedback.trim() ? feedback : null;
   } catch (err) {
-    console.error(JSON.stringify({ event: "writing-check", status: "error", message: (err as Error).message }));
+    console.error(JSON.stringify({ event: eventName, status: "error", message: (err as Error).message }));
     return null;
   }
 }
 
 async function handleWritingCheck(request: Request, env: Env, origin: string): Promise<Response> {
-  const ip = clientIp(request);
-  // Two independent windows: an hourly burst cap and a per-day cumulative cap
-  // (no login exists, so IP is the closest thing to "per user" available) —
-  // the daily cap is the one that actually bounds a single visitor's share of
-  // the account-wide free Workers AI neuron allowance across a whole day.
-  if (!(await checkWindowedRateLimit(env, `wc:${ip}`, 60 * 60_000, 8, 3600))) {
+  if (!(await checkWindowedRateLimit(env, `wc:${clientIp(request)}`, 60 * 60_000, 8, 3600))) {
     return json({ error: "rate_limited" }, 429, origin);
   }
-  if (!(await checkWindowedRateLimit(env, `wcd:${ip}`, 24 * 60 * 60_000, 15, 86_400))) {
+  if (!(await checkWindowedRateLimit(env, `wcd:${await identityOrCapKey(request, env)}`, 24 * 60 * 60_000, 15, 86_400))) {
     return json({ error: "daily_limit_reached" }, 429, origin);
+  }
+  if (!(await checkGlobalAiBudget(env))) {
+    return json({ error: "daily_budget_reached" }, 429, origin);
   }
 
   let body: { text?: unknown };
@@ -356,10 +387,10 @@ async function handleWritingCheck(request: Request, env: Env, origin: string): P
   }
 
   if (!(await isSafeInput(body.text, env))) {
-    return json({ feedback: DECLINE_MESSAGE }, 200, origin);
+    return json({ feedback: WRITING_DECLINE_MESSAGE }, 200, origin);
   }
 
-  const feedback = await callWorkersAi(body.text, env);
+  const feedback = await callWorkersAi(WRITING_MODEL, WRITING_SYSTEM_PROMPT, body.text, env, "writing-check");
   if (feedback === null) {
     return json({ error: "Service temporarily unavailable" }, 503, origin);
   }
@@ -400,6 +431,122 @@ async function handleWritingReport(request: Request, env: Env, origin: string): 
   }
 }
 
+// ── /reading/check, /reading/report — optional LLM read-aloud feedback ───────
+// Same shape as /writing/check above, but the input is the transcript the
+// browser's own Web Speech API already produced locally during read-aloud
+// practice (ReadAloudPractice.tsx) — never raw audio (NFR-4: audio is never
+// transmitted or stored server-side, only its already-local text transcript).
+
+const MAX_READING_ITEMS = 30;
+const MAX_READING_ITEM_LENGTH = 300; // per target/heard string
+const READING_DECLINE_MESSAGE =
+  "This doesn't look like a German read-aloud transcript I can help with — try the read-aloud practice again and ask for feedback on that.";
+const READING_MODEL = WRITING_MODEL;
+const READING_SYSTEM_PROMPT = `You are a friendly, encouraging German pronunciation coach for A1-C1 learners on Deutsch SkillUp.
+You'll get a list of sentence pairs: the target German sentence the learner was asked to read aloud, and what speech
+recognition heard them say.
+- Look for patterns across the pairs (not just one sentence) — recurring sound/word confusions, likely mispronounced
+  words, or words consistently dropped or substituted. Speech recognition is imperfect, so don't over-read single
+  small mismatches; focus on real recurring patterns.
+- Point out the 2-4 most useful patterns, explain briefly, and give a tip for each.
+- Use warm, normalizing language (e.g. "a common mix-up at this level"), never a tone implying failure.
+- Keep the whole reply under 150 words.
+- If this doesn't look like a real German read-aloud transcript (e.g. it's abusive, empty, or unrelated content),
+  politely decline and ask them to try the read-aloud practice again — do not engage with off-topic content.`;
+
+interface ReadingItem { target: string; heard: string }
+
+function formatReadingTranscript(items: ReadingItem[]): string {
+  return items.map((it, i) => `${i + 1}. Target: "${it.target}" | Heard: "${it.heard}"`).join("\n");
+}
+
+function parseReadingItems(value: unknown): ReadingItem[] | null {
+  if (!Array.isArray(value) || value.length === 0 || value.length > MAX_READING_ITEMS) return null;
+  const items: ReadingItem[] = [];
+  for (const raw of value) {
+    if (
+      typeof raw !== "object" || raw === null ||
+      typeof (raw as { target?: unknown }).target !== "string" ||
+      typeof (raw as { heard?: unknown }).heard !== "string"
+    ) return null;
+    const target = (raw as { target: string }).target;
+    const heard = (raw as { heard: string }).heard;
+    if (target.length > MAX_READING_ITEM_LENGTH || heard.length > MAX_READING_ITEM_LENGTH) return null;
+    items.push({ target, heard });
+  }
+  return items;
+}
+
+async function handleReadingCheck(request: Request, env: Env, origin: string): Promise<Response> {
+  if (!(await checkWindowedRateLimit(env, `rc:${clientIp(request)}`, 60 * 60_000, 8, 3600))) {
+    return json({ error: "rate_limited" }, 429, origin);
+  }
+  if (!(await checkWindowedRateLimit(env, `rcd:${await identityOrCapKey(request, env)}`, 24 * 60 * 60_000, 15, 86_400))) {
+    return json({ error: "daily_limit_reached" }, 429, origin);
+  }
+  if (!(await checkGlobalAiBudget(env))) {
+    return json({ error: "daily_budget_reached" }, 429, origin);
+  }
+
+  let body: { items?: unknown };
+  try {
+    body = (await request.json()) as { items?: unknown };
+  } catch {
+    return json({ error: "Invalid JSON" }, 400, origin);
+  }
+  const items = parseReadingItems(body.items);
+  if (!items) {
+    return json({ error: "Missing or invalid items" }, 400, origin);
+  }
+
+  // Moderate the full formatted transcript (target + heard together) — this
+  // is a public POST endpoint with no server-side way to verify "target"
+  // actually came from real ReadingPassage data rather than an arbitrary
+  // caller, so both sides go through the classifier, always, unconditionally
+  // (an all-empty "heard" payload must not skip this check).
+  const transcript = formatReadingTranscript(items);
+  if (!(await isSafeInput(transcript, env))) {
+    return json({ feedback: READING_DECLINE_MESSAGE }, 200, origin);
+  }
+
+  const feedback = await callWorkersAi(READING_MODEL, READING_SYSTEM_PROMPT, transcript, env, "reading-check");
+  if (feedback === null) {
+    return json({ error: "Service temporarily unavailable" }, 503, origin);
+  }
+  return json({ feedback }, 200, origin);
+}
+
+// Same unverified-provenance caveat as handleWritingReport above.
+async function handleReadingReport(request: Request, env: Env, origin: string): Promise<Response> {
+  if (!(await checkWindowedRateLimit(env, `rr:${clientIp(request)}`, 60 * 60_000, 8, 3600))) {
+    return json({ error: "rate_limited" }, 429, origin);
+  }
+
+  let body: { items?: unknown; feedback?: unknown };
+  try {
+    body = (await request.json()) as { items?: unknown; feedback?: unknown };
+  } catch {
+    return json({ error: "Invalid JSON" }, 400, origin);
+  }
+  const items = parseReadingItems(body.items);
+  if (!items || typeof body.feedback !== "string") {
+    return json({ error: "Missing or invalid items/feedback" }, 400, origin);
+  }
+  if (body.feedback.length > MAX_WRITING_TEXT_LENGTH) {
+    return json({ error: "Payload too large" }, 413, origin);
+  }
+
+  try {
+    await env.DB.prepare(
+      "INSERT INTO flagged_reading_feedback (transcript, feedback, created_at) VALUES (?1, ?2, ?3)",
+    ).bind(formatReadingTranscript(items), body.feedback, new Date().toISOString()).run();
+    return json({ status: "ok" }, 200, origin);
+  } catch (err) {
+    console.error("reading-report-failed:", (err as Error).message);
+    return json({ error: "Service temporarily unavailable" }, 503, origin);
+  }
+}
+
 // ── Router ─────────────────────────────────────────────────────────────────
 
 export default {
@@ -427,6 +574,8 @@ export default {
     if (pathname === "/profile/save" && request.method === "POST") return handleProfileSave(request, env, origin);
     if (pathname === "/writing/check" && request.method === "POST") return handleWritingCheck(request, env, origin);
     if (pathname === "/writing/report" && request.method === "POST") return handleWritingReport(request, env, origin);
+    if (pathname === "/reading/check" && request.method === "POST") return handleReadingCheck(request, env, origin);
+    if (pathname === "/reading/report" && request.method === "POST") return handleReadingReport(request, env, origin);
 
     return json({ error: "not_found" }, 404, origin);
   },

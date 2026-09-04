@@ -1,8 +1,11 @@
 import { useState } from "react";
-import { AlertTriangle, BookOpen, CheckCircle2, Info, Mic, MicOff, PenLine, Turtle, Volume2, Wand2 } from "lucide-react";
+import { AlertTriangle, BookOpen, CheckCircle2, Flag, Info, Loader2, Mic, MicOff, PenLine, Sparkles, Turtle, Volume2, Wand2 } from "lucide-react";
 import type { ReadingPassage } from "@/types";
 import { useSpeech } from "@/lib/useSpeech";
 import { useSpeechRecognition, type RecognitionResult } from "@/lib/useSpeechRecognition";
+import { useAuth } from "@/lib/auth";
+import { aiErrorMessage } from "@/lib/aiFeedback";
+import { checkReadingWithAI, reportReadingFeedback, type ReadingCheckItem, type ReadingCheckResult } from "@/lib/readingCheck";
 import { analyze, type Feedback } from "./agents/WritingChecker";
 import { WritingPad } from "./WritingPad";
 import { Badge, Button, GlassCard, SectionHeader } from "./ui";
@@ -24,24 +27,55 @@ const FEEDBACK_ICON = {
 } as const;
 
 export function ReadAloudPractice({ passage }: ReadAloudPracticeProps) {
+  const { token } = useAuth();
   const { speak } = useSpeech();
   const { listening, activeSentenceIndex, error, isSupported, listenContinuous, stop } = useSpeechRecognition();
   const [results, setResults] = useState<Record<number, RecognitionResult>>({});
   const [responseText, setResponseText] = useState("");
   const [feedback, setFeedback] = useState<Feedback[] | null>(null);
+  const [aiFeedback, setAiFeedback] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<Extract<ReadingCheckResult, { ok: false }>["reason"] | undefined>();
+  const [reported, setReported] = useState(false);
+  const [reporting, setReporting] = useState(false);
 
   const handleStart = () => {
     setResults({});
+    setAiFeedback(null);
+    setAiError(undefined);
+    setReported(false);
     listenContinuous(passage.sentences, (i, r) => {
       setResults((prev) => ({ ...prev, [i]: r }));
     });
   };
 
   const doneCount = Object.keys(results).length;
-  const aggregateScore =
-    doneCount === passage.sentences.length && doneCount > 0
-      ? Math.round(Object.values(results).reduce((sum, r) => sum + r.score, 0) / doneCount)
-      : null;
+  const isComplete = doneCount === passage.sentences.length && doneCount > 0;
+  const aggregateScore = isComplete
+    ? Math.round(Object.values(results).reduce((sum, r) => sum + r.score, 0) / doneCount)
+    : null;
+
+  const readingItems = (): ReadingCheckItem[] =>
+    passage.sentences.map((target, i) => ({ target, heard: results[i]?.heard ?? "" }));
+
+  const getAiFeedback = async () => {
+    setAiLoading(true);
+    setAiError(undefined);
+    setAiFeedback(null);
+    setReported(false);
+    const result = await checkReadingWithAI(readingItems(), token);
+    setAiLoading(false);
+    if (result.ok) setAiFeedback(result.feedback);
+    else setAiError(result.reason);
+  };
+
+  const report = async () => {
+    if (!aiFeedback || reporting) return;
+    setReporting(true);
+    const ok = await reportReadingFeedback(readingItems(), aiFeedback, token);
+    setReporting(false);
+    if (ok) setReported(true);
+  };
 
   return (
     <GlassCard className="p-5">
@@ -115,10 +149,52 @@ export function ReadAloudPractice({ passage }: ReadAloudPracticeProps) {
             </Button>
           )}
           {aggregateScore !== null && <Badge label={`Passage score: ${aggregateScore}%`} variant="violet" />}
+          {isComplete && (
+            <Button
+              variant="outline"
+              size="sm"
+              icon={aiLoading ? Loader2 : Sparkles}
+              onClick={getAiFeedback}
+              disabled={aiLoading}
+            >
+              {aiLoading ? "Thinking…" : "Get AI Feedback"}
+            </Button>
+          )}
         </div>
       )}
 
       {error && <p className="mt-2 text-xs text-error">{error}</p>}
+
+      {aiError && (
+        <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-300">
+          <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+          <span>{aiErrorMessage(aiError)}</span>
+        </div>
+      )}
+
+      {aiFeedback && (
+        <GlassCard accent="violet" className="mt-3 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Sparkles size={13} className="text-lilac shrink-0" />
+            <p className="text-xs font-bold uppercase tracking-widest text-lilac">AI Feedback</p>
+          </div>
+          <p className="text-sm text-slate-200 whitespace-pre-wrap">{aiFeedback}</p>
+          <div className="pt-2 border-t border-border">
+            {reported ? (
+              <span className="text-xs text-muted">Thanks — this has been flagged for review.</span>
+            ) : (
+              <button
+                onClick={report}
+                disabled={reporting}
+                className="inline-flex items-center gap-1.5 text-xs text-muted hover:text-amber-300 transition-colors disabled:opacity-50 disabled:pointer-events-none"
+              >
+                <Flag size={12} />
+                {reporting ? "Reporting…" : "Report this feedback"}
+              </button>
+            )}
+          </div>
+        </GlassCard>
+      )}
 
       {passage.translationEn && (
         <details className="mt-4 text-sm">

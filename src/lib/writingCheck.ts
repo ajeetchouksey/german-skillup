@@ -1,39 +1,34 @@
+import { authHeaders, parseAiFeedbackResponse, type AiFeedbackResult } from "./aiFeedback";
+
 const AUTH_WORKER_URL = (import.meta.env.VITE_AUTH_WORKER_URL as string | undefined) || "";
 
-export type WritingCheckResult =
-  | { ok: true; feedback: string }
-  | { ok: false; reason: "rate_limited" | "daily_limit_reached" | "unavailable" };
+export type WritingCheckResult = AiFeedbackResult;
 
-/** Optional, on-demand LLM writing feedback (Phase 4b). Anonymous — no auth
- * token needed, mirrors FR-3.3 (the app stays usable without signing in).
- * Never throws — any failure (network, rate limit, misconfigured worker)
- * comes back as a typed `{ ok: false, reason }` for the caller to render. */
-export async function checkWritingWithAI(text: string): Promise<WritingCheckResult> {
+/** Optional, on-demand LLM writing feedback (Phase 4b). No auth token is
+ * required, mirrors FR-3.3 (the app stays usable without signing in) — `token`
+ * is passed through only so the Worker can key its daily cap by identity
+ * instead of IP when the caller happens to be logged in. Never throws — any
+ * failure comes back as a typed `{ ok: false, reason }` for the caller to render. */
+export async function checkWritingWithAI(text: string, token?: string | null): Promise<WritingCheckResult> {
   if (!AUTH_WORKER_URL) return { ok: false, reason: "unavailable" };
   try {
     const res = await fetch(`${AUTH_WORKER_URL}/writing/check`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders(token),
       body: JSON.stringify({ text }),
     });
-    if (res.status === 429) {
-      const data = (await res.json().catch(() => null)) as { error?: string } | null;
-      return { ok: false, reason: data?.error === "daily_limit_reached" ? "daily_limit_reached" : "rate_limited" };
-    }
-    if (!res.ok) return { ok: false, reason: "unavailable" };
-    const data = (await res.json()) as { feedback?: string };
-    return data.feedback ? { ok: true, feedback: data.feedback } : { ok: false, reason: "unavailable" };
+    return await parseAiFeedbackResponse(res);
   } catch {
     return { ok: false, reason: "unavailable" };
   }
 }
 
-export async function reportWritingFeedback(text: string, feedback: string): Promise<boolean> {
+export async function reportWritingFeedback(text: string, feedback: string, token?: string | null): Promise<boolean> {
   if (!AUTH_WORKER_URL) return false;
   try {
     const res = await fetch(`${AUTH_WORKER_URL}/writing/report`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders(token),
       body: JSON.stringify({ text, feedback }),
     });
     return res.ok;

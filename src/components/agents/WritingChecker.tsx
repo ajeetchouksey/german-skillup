@@ -2,6 +2,8 @@ import { useState } from "react";
 import { AlertTriangle, CheckCircle2, Flag, Info, Loader2, RotateCcw, Sparkles, Wand2 } from "lucide-react";
 import { Badge, Button, GlassCard, SectionHeader } from "@/components/ui";
 import { WritingPad } from "@/components/WritingPad";
+import { useAuth } from "@/lib/auth";
+import { aiErrorMessage } from "@/lib/aiFeedback";
 import { checkWritingWithAI, reportWritingFeedback, type WritingCheckResult } from "@/lib/writingCheck";
 
 export interface Feedback {
@@ -92,6 +94,7 @@ export function analyze(text: string): Feedback[] {
 }
 
 export function WritingChecker() {
+  const { token } = useAuth();
   const [text, setText] = useState("");
   const [feedback, setFeedback] = useState<Feedback[] | null>(null);
   const [aiFeedback, setAiFeedback] = useState<string | null>(null);
@@ -114,7 +117,7 @@ export function WritingChecker() {
     setAiError(undefined);
     setAiFeedback(null);
     setReported(false);
-    const result = await checkWritingWithAI(text);
+    const result = await checkWritingWithAI(text, token);
     setAiLoading(false);
     if (result.ok) setAiFeedback(result.feedback);
     else setAiError(result.reason);
@@ -123,7 +126,7 @@ export function WritingChecker() {
   const report = async () => {
     if (!aiFeedback || reporting) return;
     setReporting(true);
-    const ok = await reportWritingFeedback(text, aiFeedback);
+    const ok = await reportWritingFeedback(text, aiFeedback, token);
     setReporting(false);
     if (ok) setReported(true);
   };
@@ -204,13 +207,7 @@ export function WritingChecker() {
         <GlassCard className="p-4">
           <div className="flex items-start gap-2 text-sm text-amber-300">
             <AlertTriangle size={13} className="shrink-0 mt-0.5" />
-            <span>
-              {aiError === "daily_limit_reached"
-                ? "You've used up today's free AI feedback — please try again tomorrow."
-                : aiError === "rate_limited"
-                ? "Too many requests in a short time — please wait a bit and try again."
-                : "AI feedback isn't available right now — try again in a moment."}
-            </span>
+            <span>{aiErrorMessage(aiError)}</span>
           </div>
         </GlassCard>
       )}

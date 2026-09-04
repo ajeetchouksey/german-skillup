@@ -30,19 +30,27 @@ binding       = "DB"
 database_name = "deutsch-skillup-progress"
 database_id   = "387af76a-8482-48fe-ac8d-3ab4ef0fa7ff"
 
-# ── Workers AI — powers the optional /writing/check "Get AI Feedback" route ──
-# (Phase 4b). Two open models on Workers AI's free daily neuron allowance,
-# NOT a paid provider like Anthropic — this is an open-source project and
-# /writing/check is anonymous/user-triggered, so it must never be able to run
-# up a bill on its own: llama-3.1-8b-instruct-fast writes the coaching reply,
-# llama-guard-3-8b is the content-safety classifier gating it (see
-# workers/auth.ts's isSafeInput — a real moderation call, not just a prompt
-# instruction, since an open model has no Anthropic-style built-in safety
-# layer to lean on). No API key: a binding is authenticated automatically by
-# the Worker's own execution context. Watch actual usage via `wrangler tail`
-# (each call logs a one-line JSON record) and the Workers AI section of the
-# Cloudflare dashboard (neuron consumption per model) — add a hard daily cap
-# later only if real traffic ever approaches the free tier.
+# ── Workers AI — powers the optional /writing/check and /reading/check ───────
+# "Get AI Feedback" routes (Phase 4b, scope deliberately limited to these two
+# activities for now). Two open models on Workers AI's free daily neuron
+# allowance, NOT a paid provider like Anthropic — this is an open-source
+# project and both routes are anonymous/user-triggered, so they must never be
+# able to run up a bill on their own: llama-3.1-8b-instruct-fast writes the
+# coaching reply, llama-guard-3-8b is the content-safety classifier gating it
+# (see workers/auth.ts's isSafeInput — a real moderation call, not just a
+# prompt instruction, since an open model has no Anthropic-style built-in
+# safety layer to lean on). No API key: a binding is authenticated
+# automatically by the Worker's own execution context.
+#
+# Three rate-limit layers (see workers/auth.ts's block comment above
+# handleWritingCheck): an hourly per-IP burst cap, a 15/day cap keyed by
+# logged-in identity when available (falls back to IP when anonymous — no
+# login is ever required), and a 120/day GLOBAL_DAILY_AI_BUDGET shared across
+# BOTH routes together, since they draw on the same account-wide free pool
+# (also shared with whatever ajch_platform draws on this same account). Watch
+# actual usage via `wrangler tail` (each call logs a one-line JSON record) and
+# the Workers AI section of the Cloudflare dashboard (neuron consumption per
+# model) before raising any of these numbers.
 [ai]
 binding = "AI"
 
