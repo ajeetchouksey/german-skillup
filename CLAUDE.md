@@ -45,7 +45,7 @@ New lesson content (A2 needs more modules; B1/B2/C1 don't exist yet) is authored
 | Agent | Tools | Writes to |
 |---|---|---|
 | `curriculum-lead` | `Read, Agent, Grep, Glob, WebFetch` | nothing (research + delegate only) |
-| `lesson-writer` | `Read, Write, Edit, Glob, Grep` | `lessons.<level>.ts`, `modulePractice.ts`, `levels.ts` (own level), `examBlueprint.<level>.ts` |
+| `lesson-writer` | `Read, Write, Edit, Glob, Grep, Bash` (restricted to `node scripts/generate-illustration.mjs`) | `lessons.<level>.ts`, `modulePractice.ts`, `levels.ts` (own level), `examBlueprint.<level>.ts` |
 | `lesson-validator` | `Read, Grep, Glob, Bash` (`tsc -b --noEmit` only) | nothing (read-only gate) |
 
 See `.claude/agents/*.md` for full mandates and `.claude/skills/{lesson-schema,lesson-standard,german-exam-reference,lesson-diagram-craft}/SKILL.md` for the schema contract, pedagogy/quality rules, per-level exam reference, and visual-content craft they follow.
