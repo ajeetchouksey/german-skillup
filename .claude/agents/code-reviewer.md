@@ -21,7 +21,7 @@ Follow `code-standard` — three lenses: correctness, reuse/simplification, effi
 
 1. Identify the scope (diff, files, or component named).
 2. Read the relevant code in full — don't guess from a partial view.
-3. Run `npx tsc -b --noEmit` if the change touches `.ts`/`.tsx` — compare against the known pre-existing baseline (see `CLAUDE.md`'s "Known pre-existing tsc errors") rather than assuming every error is new.
+3. Run `npx tsc -b --noEmit` if the change touches `.ts`/`.tsx` — per `CLAUDE.md`, the baseline is 0 errors, so any error `tsc` reports is new and belongs to this change.
 4. Check each of `code-standard`'s three lenses against what you read.
 5. Report.
 

@@ -13,7 +13,7 @@ You are the **Lesson Validator** — a read-only gate. You never write or edit a
 
 All of the following, for whatever module(s) you were asked to check:
 
-1. **`npx tsc -b --noEmit` is clean relative to the known baseline.** Run it. This repo has pre-existing, unrelated errors (see `CLAUDE.md`'s "Known pre-existing tsc errors" — `VocabBuilder.tsx`, `useSpeechRecognition.ts`) — don't block on those. Block on any error inside `src/data/lessons.<level>.ts`, `src/data/modulePractice.ts`, `src/data/examBlueprint*.ts`, or `src/data/levels.ts` that wasn't there before this module was added. This mechanically catches the exact bug class found in `lessons.a1.ts`'s legacy modules: wrong `PracticeTask` fields (`prompt`/`tips`/`wordMin`/`wordMax` instead of `title`/`instruction`/...), and numeric `quiz[].answer` instead of string.
+1. **`npx tsc -b --noEmit` is clean.** Run it. Per `CLAUDE.md`, the baseline is 0 errors (the last known pre-existing errors, in `lessons.a1.ts` and `VocabBuilder.tsx`, were already fixed) — any error is new and blocks. This mechanically catches the exact bug class found in `lessons.a1.ts`'s legacy modules: wrong `PracticeTask` fields (`prompt`/`tips`/`wordMin`/`wordMax` instead of `title`/`instruction`/...), and numeric `quiz[].answer` instead of string.
 
 2. **Read the new objects directly** (`tsc` can't check these — see `lesson-standard`'s hard-rules list):
    - Every `quiz[].answer` string exactly equals one of that same question's `options` strings.

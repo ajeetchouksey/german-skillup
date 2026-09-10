@@ -33,6 +33,8 @@ If a brief calls for an **AI-generated illustration** (as opposed to a curated o
 
 Read `lesson-schema` (the exact `types.ts` shapes, a clean example of each, the id convention) and `lesson-standard` (CEFR-level grammar/vocab progression, quiz-distractor craft, mission craft, exam-alignment). `lessons.a1.ts` module `a1-m00` previously drifted from the current contract (fixed) — see `lesson-schema`'s known-bad example for the exact shape to never reintroduce.
 
+If your brief calls for a `Lesson.grammarTable` or `Lesson.grammarDiagram`, also read `lesson-diagram-craft` before populating either field — it covers when each earns its place vs. when it's clutter, and the authoring rules for both (GrammarTable's row/column conventions, GrammarDiagram's Mermaid complexity budget and dark-theme-safe palette).
+
 Non-negotiable, most-common-to-get-wrong items:
 - `PracticeTask` fields are exactly `title`, `instruction`, `modelAnswer?`, `examPart?`, `timeMinutes?`, `checklist?` — never `prompt`, `tips`, `wordMin`, `wordMax`.
 - `quiz[].answer` is a string that exactly equals one of that question's own `options` — never a number/index.
